@@ -928,12 +928,12 @@
             const speakBtn = document.createElement('button');
             speakBtn.className = 'message-action-btn';
             speakBtn.textContent = '🔊 Listen';
-            speakBtn.addEventListener('click', () => {
+            speakBtn.addEventListener('click', async () => {
                 if (speechSynth && speechSynth.speaking) {
                     speechSynth.cancel();
                     speakBtn.classList.remove('active');
                 } else {
-                    speakText(content, speakBtn);
+                    await speakText(content, speakBtn);
                 }
             });
 
@@ -1286,18 +1286,13 @@
                 conversationHistory.push({ role: 'assistant', content: fullContent });
 
                 if (autoReadEnabled && fullContent) {
-                    (async () => {
+                    setTimeout(async () => {
                         await voicesLoadPromise;
-                        await new Promise(resolve => setTimeout(resolve, 600));
-                        const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
-                        if (!lastAssistantMessage) return;
-                        const speakBtn = lastAssistantMessage.querySelector('.message-action-btn');
-                        const content = lastAssistantMessage.querySelector('.message-content');
-                        const cleanText = extractTextFromHtml(content ? content.innerHTML : '').trim();
-                        if (cleanText && speakBtn) {
-                            await speakText(fullContent, speakBtn);
+                        const cleanText = extractTextFromHtml(fullContent).trim();
+                        if (cleanText) {
+                            await speakText(fullContent, null);
                         }
-                    })();
+                    }, 800);
                 }
 
                 if (usageData) {
@@ -1351,12 +1346,11 @@
                 await voicesLoadPromise;
                 const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
                 if (lastAssistantMessage) {
-                    const speakBtn = lastAssistantMessage.querySelector('.message-action-btn');
                     const content = lastAssistantMessage.querySelector('.message-content');
-                    if (content && speakBtn) {
+                    if (content) {
                         const text = extractTextFromHtml(content.innerHTML);
                         if (text.trim()) {
-                            await speakText(text, speakBtn);
+                            await speakText(text, null);
                         }
                     }
                 }
