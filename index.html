@@ -559,6 +559,16 @@
                 <select class="model-select" id="voiceSelect" title="Select voice">
                     <option value="">Loading voices...</option>
                 </select>
+                <select class="model-select" id="speedSelect" title="Speech speed">
+                    <option value="0.25">0.25x</option>
+                    <option value="0.5">0.5x</option>
+                    <option value="0.75">0.75x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="1.75">1.75x</option>
+                    <option value="2">2x</option>
+                </select>
                 <button class="icon-button" id="exportJson" title="Export as JSON">JSON</button>
                 <button class="icon-button" id="exportMarkdown" title="Export as Markdown">MD</button>
                 <button class="icon-button" id="shareChat" title="Share conversation">Share</button>
@@ -648,6 +658,7 @@
         const removeImageButton = document.getElementById('removeImage');
         const modelSelect = document.getElementById('modelSelect');
         const voiceSelect = document.getElementById('voiceSelect');
+        const speedSelect = document.getElementById('speedSelect');
         const exportJsonButton = document.getElementById('exportJson');
         const exportMarkdownButton = document.getElementById('exportMarkdown');
         const shareChatButton = document.getElementById('shareChat');
@@ -1051,7 +1062,7 @@
             if (!cleanText) return;
             const utterance = new SpeechSynthesisUtterance(cleanText);
             utterance.lang = 'en-US';
-            utterance.rate = 1;
+            utterance.rate = parseFloat(speedSelect.value) || 1;
             utterance.pitch = 1;
             utterance.volume = 1;
             const voices = speechSynth.getVoices();
