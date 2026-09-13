@@ -1286,28 +1286,18 @@
                 conversationHistory.push({ role: 'assistant', content: fullContent });
 
                 if (autoReadEnabled && fullContent) {
-                    const attemptSpeak = async (attempts = 0) => {
-                        const maxAttempts = 8;
-                        const delay = Math.min(400 + attempts * 350, 2200);
-
-                        await new Promise(resolve => setTimeout(resolve, delay));
-
+                    (async () => {
+                        await voicesLoadPromise;
+                        await new Promise(resolve => setTimeout(resolve, 600));
                         const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
                         if (!lastAssistantMessage) return;
-
                         const speakBtn = lastAssistantMessage.querySelector('.message-action-btn');
-                        if (!speakBtn && attempts < maxAttempts) {
-                            attemptSpeak(attempts + 1);
-                            return;
-                        }
-
-                        const cleanText = extractTextFromHtml(fullContent).trim();
+                        const content = lastAssistantMessage.querySelector('.message-content');
+                        const cleanText = extractTextFromHtml(content ? content.innerHTML : '').trim();
                         if (cleanText && speakBtn) {
                             await speakText(fullContent, speakBtn);
                         }
-                    };
-
-                    attemptSpeak();
+                    })();
                 }
 
                 if (usageData) {
@@ -1352,6 +1342,11 @@
             voiceOutputToggle.classList.toggle('speaking', autoReadEnabled);
             voiceOutputToggle.textContent = autoReadEnabled ? '🔊 Auto-Read ON' : '🔊 Auto-Read';
             
+            if (!autoReadEnabled && speechSynth && speechSynth.speaking) {
+                speechSynth.cancel();
+                return;
+            }
+            
             if (autoReadEnabled) {
                 await voicesLoadPromise;
                 const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
@@ -1361,12 +1356,10 @@
                     if (content && speakBtn) {
                         const text = extractTextFromHtml(content.innerHTML);
                         if (text.trim()) {
-                            speakText(text, speakBtn);
+                            await speakText(text, speakBtn);
                         }
                     }
                 }
-            } else if (speechSynth && speechSynth.speaking) {
-                speechSynth.cancel();
             }
         });
 
