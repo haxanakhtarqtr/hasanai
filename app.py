@@ -10,6 +10,7 @@ CORS(app)
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "qwen/qwen-2.5-coder-32b-instruct"
+FALLBACK_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
 
 def format_sse(data: str, event: str = None) -> str:
     msg = f"data: {data}\n\n"
@@ -47,32 +48,44 @@ def chat():
     }
 
     def generate():
-        try:
-            with requests.post(OPENROUTER_URL, headers=headers, json=payload, stream=True, timeout=60) as resp:
-                if resp.status_code != 200:
-                    error_msg = f"OpenRouter API error: {resp.status_code} - {resp.text}"
-                    yield format_sse(json.dumps({"error": error_msg}))
-                    return
+        tried_fallback = False
+        
+        def try_model(model_name):
+            nonlocal tried_fallback
+            payload["model"] = model_name
+            try:
+                with requests.post(OPENROUTER_URL, headers=headers, json=payload, stream=True, timeout=60) as resp:
+                    if resp.status_code == 402 and not tried_fallback:
+                        tried_fallback = True
+                        for chunk in try_model(FALLBACK_MODEL):
+                            yield chunk
+                        return
+                    if resp.status_code != 200:
+                        error_msg = f"OpenRouter API error: {resp.status_code} - {resp.text}"
+                        yield format_sse(json.dumps({"error": error_msg}))
+                        return
 
-                for line in resp.iter_lines():
-                    if line:
-                        line = line.decode('utf-8')
-                        if line.startswith('data: '):
-                            line = line[6:]
-                        if line.strip() == '[DONE]':
-                            yield format_sse(json.dumps({"done": True}))
-                            return
-                        try:
-                            chunk = json.loads(line)
-                            if 'choices' in chunk and len(chunk['choices']) > 0:
-                                delta = chunk['choices'][0].get('delta', {})
-                                content = delta.get('content', '')
-                                if content:
-                                    yield format_sse(json.dumps({"content": content}))
-                        except json.JSONDecodeError:
-                            continue
-        except Exception as e:
-            yield format_sse(json.dumps({"error": str(e)}))
+                    for line in resp.iter_lines():
+                        if line:
+                            line = line.decode('utf-8')
+                            if line.startswith('data: '):
+                                line = line[6:]
+                            if line.strip() == '[DONE]':
+                                yield format_sse(json.dumps({"done": True}))
+                                return
+                            try:
+                                chunk = json.loads(line)
+                                if 'choices' in chunk and len(chunk['choices']) > 0:
+                                    delta = chunk['choices'][0].get('delta', {})
+                                    content = delta.get('content', '')
+                                    if content:
+                                        yield format_sse(json.dumps({"content": content}))
+                            except json.JSONDecodeError:
+                                continue
+            except Exception as e:
+                yield format_sse(json.dumps({"error": str(e)}))
+
+        yield from try_model(MODEL)
 
     return Response(stream_with_context(generate()), content_type='text/event-stream')
 
