@@ -1,7 +1,8 @@
 import os
 import json
+import time
 import requests
-from flask import Flask, request, Response, stream_with_context, send_from_directory
+from flask import Flask, request, Response, stream_with_context, send_from_directory, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -17,6 +18,14 @@ def format_sse(data: str, event: str = None) -> str:
     if event:
         msg = f"event: {event}\n{msg}"
     return msg
+
+@app.route('/healthz')
+def healthz():
+    return jsonify({
+        'status': 'ok',
+        'model': MODEL,
+        'timestamp': int(time.time())
+    })
 
 @app.route('/')
 def index():
@@ -57,12 +66,35 @@ def chat():
                 with requests.post(OPENROUTER_URL, headers=headers, json=payload, stream=True, timeout=60) as resp:
                     if resp.status_code == 402 and not tried_fallback:
                         tried_fallback = True
+                        yield format_sse(json.dumps({
+                            "error": "Primary model unavailable. Trying a free alternative...",
+                            "retry": True
+                        }))
                         for chunk in try_model(FALLBACK_MODEL):
                             yield chunk
                         return
+                    
+                    if resp.status_code == 404:
+                        yield format_sse(json.dumps({
+                            "error": "Model not found. Please try again later."
+                        }))
+                        return
+                    
+                    if resp.status_code == 429:
+                        yield format_sse(json.dumps({
+                            "error": "Rate limit exceeded. Please wait a moment and try again."
+                        }))
+                        return
+                    
                     if resp.status_code != 200:
-                        error_msg = f"OpenRouter API error: {resp.status_code} - {resp.text}"
-                        yield format_sse(json.dumps({"error": error_msg}))
+                        try:
+                            error_data = resp.json()
+                            error_msg = error_data.get('error', {}).get('message', resp.text)
+                        except:
+                            error_msg = resp.text or f"HTTP {resp.status_code}"
+                        yield format_sse(json.dumps({
+                            "error": f"API Error: {error_msg}"
+                        }))
                         return
 
                     for line in resp.iter_lines():
@@ -82,8 +114,18 @@ def chat():
                                         yield format_sse(json.dumps({"content": content}))
                             except json.JSONDecodeError:
                                 continue
+            except requests.exceptions.Timeout:
+                yield format_sse(json.dumps({
+                    "error": "Request timed out. The model is taking too long to respond. Please try again."
+                }))
+            except requests.exceptions.ConnectionError:
+                yield format_sse(json.dumps({
+                    "error": "Connection error. Please check your internet connection and try again."
+                }))
             except Exception as e:
-                yield format_sse(json.dumps({"error": str(e)}))
+                yield format_sse(json.dumps({
+                    "error": f"An unexpected error occurred: {str(e)}"
+                }))
 
         yield from try_model(MODEL)
 
