@@ -76,6 +76,27 @@
             border-color: #0e639c;
         }
 
+        .voice-select {
+            background-color: #3e3e42;
+            border: 1px solid #3e3e42;
+            color: #d4d4d4;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            outline: none;
+            min-width: 180px;
+        }
+
+        .voice-select:focus {
+            border-color: #0e639c;
+        }
+
+        .voice-select option.british-voice {
+            color: #0e639c;
+            font-weight: bold;
+        }
+
         .icon-button {
             background: transparent;
             border: 1px solid #3e3e42;
@@ -535,6 +556,9 @@
                     <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                     <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                 </select>
+                <select class="model-select" id="voiceSelect" title="Select voice">
+                    <option value="">Loading voices...</option>
+                </select>
                 <button class="icon-button" id="exportJson" title="Export as JSON">JSON</button>
                 <button class="icon-button" id="exportMarkdown" title="Export as Markdown">MD</button>
                 <button class="icon-button" id="shareChat" title="Share conversation">Share</button>
@@ -623,6 +647,7 @@
         const imageName = document.getElementById('imageName');
         const removeImageButton = document.getElementById('removeImage');
         const modelSelect = document.getElementById('modelSelect');
+        const voiceSelect = document.getElementById('voiceSelect');
         const exportJsonButton = document.getElementById('exportJson');
         const exportMarkdownButton = document.getElementById('exportMarkdown');
         const shareChatButton = document.getElementById('shareChat');
@@ -641,6 +666,7 @@
         let currentUtterance = null;
         let autoReadEnabled = false;
         let userInteracted = false;
+        let selectedVoiceIndex = '';
 
         function handleImageSelect(file) {
             if (!file) return;
@@ -909,6 +935,64 @@
             }
         }
 
+        function populateVoiceSelector() {
+            if (!('speechSynthesis' in window)) {
+                voiceSelect.innerHTML = '<option value="">TTS not supported</option>';
+                return;
+            }
+
+            const voices = speechSynth.getVoices();
+            voiceSelect.innerHTML = '';
+
+            const britishVoices = [];
+            const otherVoices = [];
+
+            voices.forEach((voice, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${voice.name} (${voice.lang})`;
+                
+                if (voice.lang.toLowerCase().includes('en') && 
+                    (voice.lang.toLowerCase().includes('gb') || 
+                     voice.lang.toLowerCase().includes('uk') ||
+                     voice.name.toLowerCase().includes('british'))) {
+                    britishVoices.push(option);
+                } else {
+                    otherVoices.push(option);
+                }
+            });
+
+            if (britishVoices.length > 0) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = '🇬🇧 British English';
+                britishVoices.forEach(option => {
+                    option.classList.add('british-voice');
+                    optgroup.appendChild(option);
+                });
+                voiceSelect.appendChild(optgroup);
+            }
+
+            if (otherVoices.length > 0) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = 'Other Voices';
+                otherVoices.forEach(option => {
+                    optgroup.appendChild(option);
+                });
+                voiceSelect.appendChild(optgroup);
+            }
+
+            if (britishVoices.length > 0) {
+                voiceSelect.value = britishVoices[0].value;
+            }
+        }
+
+        voiceSelect.addEventListener('change', () => {
+            const index = voiceSelect.value;
+            if (index !== '') {
+                selectedVoiceIndex = parseInt(index);
+            }
+        });
+
         function initSpeechSynthesis() {
             if (!('speechSynthesis' in window)) {
                 console.warn('Speech synthesis not supported');
@@ -921,6 +1005,7 @@
                     const voices = speechSynth.getVoices();
                     console.log('Voices loaded:', voices.length);
                     voicesLoaded = true;
+                    populateVoiceSelector();
                     resolve(voices);
                 };
                 const tryFinish = () => {
@@ -933,7 +1018,10 @@
                 if (speechSynth.getVoices().length > 0) {
                     finish();
                 } else {
-                    speechSynth.onvoiceschanged = tryFinish;
+                    speechSynth.onvoiceschanged = () => {
+                        finish();
+                        populateVoiceSelector();
+                    };
                     setTimeout(tryFinish, 1000);
                 }
             });
@@ -967,12 +1055,19 @@
             utterance.pitch = 1;
             utterance.volume = 1;
             const voices = speechSynth.getVoices();
-            const enVoices = voices.filter(voice => voice.lang.startsWith('en'));
-            if (enVoices.length > 0) {
-                const preferredVoice = enVoices.find(voice => 
-                    voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Apple')
-                ) || enVoices[0];
-                utterance.voice = preferredVoice;
+            const selectedIndex = voiceSelect.value;
+            if (selectedIndex !== '' && voices[selectedIndex]) {
+                utterance.voice = voices[selectedIndex];
+            } else {
+                const enVoices = voices.filter(voice => voice.lang.startsWith('en'));
+                if (enVoices.length > 0) {
+                    const preferredVoice = enVoices.find(voice => 
+                        voice.lang.toLowerCase().includes('gb') || 
+                        voice.lang.toLowerCase().includes('uk') ||
+                        voice.name.toLowerCase().includes('british')
+                    ) || enVoices[0];
+                    utterance.voice = preferredVoice;
+                }
             }
             utterance.onstart = () => {
                 console.log('Speech started');
