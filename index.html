@@ -806,7 +806,21 @@
         function initSpeechSynthesis() {
             if ('speechSynthesis' in window) {
                 speechSynth = window.speechSynthesis;
-                speechSynth.getVoices();
+                
+                const loadVoices = () => {
+                    const voices = speechSynth.getVoices();
+                    console.log('Available voices:', voices.length);
+                    const enVoices = voices.filter(v => v.lang.startsWith('en'));
+                    console.log('English voices:', enVoices.length);
+                };
+                
+                loadVoices();
+                speechSynth.onvoiceschanged = loadVoices;
+                
+                setTimeout(loadVoices, 1000);
+            } else {
+                console.warn('Speech synthesis not supported');
+                voiceOutputToggle.style.display = 'none';
             }
         }
 
@@ -818,21 +832,23 @@
 
         function speakText(text, buttonElement) {
             if (!speechSynth) {
-                console.warn('Text-to-speech is not supported in your browser.');
+                console.warn('Speech synthesis not supported');
                 return;
             }
 
             if (speechSynth.speaking) {
+                console.log('Stopping current speech');
                 speechSynth.cancel();
                 if (buttonElement) {
                     buttonElement.classList.remove('active');
                 }
+                setTimeout(() => speakText(text, buttonElement), 100);
                 return;
             }
 
             const cleanText = extractTextFromHtml(text).trim();
             if (!cleanText) {
-                console.warn('No text to speak.');
+                console.warn('No text to speak');
                 return;
             }
 
@@ -843,17 +859,20 @@
             utterance.volume = 1;
 
             const voices = speechSynth.getVoices();
-            const preferredVoice = voices.find(voice => 
-                voice.lang.startsWith('en') && voice.name.includes('Google')
-            ) || voices.find(voice => 
-                voice.lang.startsWith('en')
-            );
+            console.log('Total voices available:', voices.length);
             
-            if (preferredVoice) {
+            const enVoices = voices.filter(voice => voice.lang.startsWith('en'));
+            console.log('English voices:', enVoices.length);
+            
+            if (enVoices.length > 0) {
+                const preferredVoice = enVoices.find(voice => 
+                    voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Apple')
+                ) || enVoices[0];
                 utterance.voice = preferredVoice;
+                console.log('Using voice:', preferredVoice.name, preferredVoice.lang);
+            } else {
+                console.warn('No English voices available, using default');
             }
-
-            currentUtterance = utterance;
 
             utterance.onstart = () => {
                 console.log('Speech started');
@@ -863,7 +882,7 @@
             };
 
             utterance.onend = () => {
-                console.log('Speech ended');
+                console.log('Speech ended naturally');
                 if (buttonElement) {
                     buttonElement.classList.remove('active');
                 }
@@ -871,14 +890,14 @@
             };
 
             utterance.onerror = (event) => {
-                console.error('Speech error:', event.error);
+                console.error('Speech error:', event.error, event);
                 if (buttonElement) {
                     buttonElement.classList.remove('active');
                 }
                 currentUtterance = null;
             };
 
-            console.log('Speaking:', cleanText.substring(0, 50) + '...');
+            console.log('Attempting to speak:', cleanText.substring(0, 50) + '...');
             speechSynth.speak(utterance);
         }
 
@@ -1246,15 +1265,26 @@
                 conversationHistory.push({ role: 'assistant', content: fullContent });
 
                 if (autoReadEnabled && fullContent) {
-                    setTimeout(() => {
-                        const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
-                        if (lastAssistantMessage) {
+                    const attemptSpeak = (attempts = 0) => {
+                        setTimeout(() => {
+                            const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
+                            if (!lastAssistantMessage) return;
+                            
                             const speakBtn = lastAssistantMessage.querySelector('.message-action-btn');
-                            if (speakBtn) {
+                            if (!speakBtn) {
+                                if (attempts < 5) {
+                                    attemptSpeak(attempts + 1);
+                                }
+                                return;
+                            }
+                            
+                            const cleanText = extractTextFromHtml(fullContent).trim();
+                            if (cleanText) {
                                 speakText(fullContent, speakBtn);
                             }
-                        }
-                    }, 500);
+                        }, Math.min(500 + attempts * 300, 2000));
+                    };
+                    attemptSpeak();
                 }
 
                 if (usageData) {
