@@ -1328,6 +1328,26 @@
             autoReadEnabled = !autoReadEnabled;
             voiceOutputToggle.classList.toggle('speaking', autoReadEnabled);
             voiceOutputToggle.textContent = autoReadEnabled ? '🔊 Auto-Read ON' : '🔊 Auto-Read';
+            
+            if (autoReadEnabled && speechSynth) {
+                const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
+                if (lastAssistantMessage) {
+                    const speakBtn = lastAssistantMessage.querySelector('.message-action-btn');
+                    const content = lastAssistantMessage.querySelector('.message-content');
+                    if (content && speakBtn) {
+                        const text = extractTextFromHtml(content.innerHTML);
+                        if (text.trim()) {
+                            speakText(text, speakBtn);
+                        }
+                    }
+                }
+            }
+        });
+
+        window.addEventListener('load', () => {
+            if (speechSynth) {
+                console.log('Page loaded, voices:', speechSynth.getVoices().length);
+            }
         });
 
         clearChatButton.addEventListener('click', clearChat);
