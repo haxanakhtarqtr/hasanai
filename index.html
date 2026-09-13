@@ -635,6 +635,12 @@
         let selectedImageMime = 'image/jpeg';
         let recognition = null;
         let isRecording = false;
+        let speechSynth = null;
+        let voicesLoaded = false;
+        let voicesLoadPromise = null;
+        let currentUtterance = null;
+        let autoReadEnabled = false;
+        let userInteracted = false;
 
         function handleImageSelect(file) {
             if (!file) return;
@@ -680,6 +686,12 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function extractTextFromHtml(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            return tmp.textContent || tmp.innerText || '';
         }
 
         function formatMessage(text) {
@@ -963,9 +975,11 @@
                 utterance.voice = preferredVoice;
             }
             utterance.onstart = () => {
+                console.log('Speech started');
                 if (buttonElement) buttonElement.classList.add('active');
             };
             utterance.onend = () => {
+                console.log('Speech ended');
                 if (buttonElement) buttonElement.classList.remove('active');
                 currentUtterance = null;
             };
@@ -974,7 +988,12 @@
                 if (buttonElement) buttonElement.classList.remove('active');
                 currentUtterance = null;
             };
-            speechSynth.speak(utterance);
+            try {
+                speechSynth.speak(utterance);
+                console.log('Speech triggered successfully');
+            } catch (e) {
+                console.error('Failed to start speech:', e);
+            }
         }
 
         function addMessageActions(messageDiv, content) {
@@ -1134,6 +1153,16 @@
                 }
 
                 conversationHistory.push({ role: 'assistant', content: fullContent });
+                
+                if (autoReadEnabled && fullContent && userInteracted) {
+                    setTimeout(async () => {
+                        await voicesLoadPromise;
+                        const cleanText = extractTextFromHtml(fullContent).trim();
+                        if (cleanText) {
+                            await speakText(fullContent, null);
+                        }
+                    }, 500);
+                }
             } catch (error) {
                 contentDiv.innerHTML = `<span style="color: #f48771;">Error: ${escapeHtml(error.message)}</span>`;
             } finally {
@@ -1179,6 +1208,40 @@
         });
 
         messageInput.addEventListener('input', autoResizeTextarea);
+
+        voiceOutputToggle.addEventListener('click', async () => {
+            autoReadEnabled = !autoReadEnabled;
+            voiceOutputToggle.classList.toggle('speaking', autoReadEnabled);
+            voiceOutputToggle.textContent = autoReadEnabled ? '🔊 Auto-Read ON' : '🔊 Auto-Read';
+            
+            if (!autoReadEnabled && speechSynth && speechSynth.speaking) {
+                speechSynth.cancel();
+                return;
+            }
+            
+            if (autoReadEnabled) {
+                userInteracted = true;
+                await voicesLoadPromise;
+                const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
+                if (lastAssistantMessage) {
+                    const content = lastAssistantMessage.querySelector('.message-content');
+                    if (content) {
+                        const text = extractTextFromHtml(content.innerHTML);
+                        if (text.trim()) {
+                            await speakText(text, null);
+                        }
+                    }
+                }
+            }
+        });
+        
+        document.addEventListener('click', () => {
+            userInteracted = true;
+        }, { once: true });
+        
+        document.addEventListener('keydown', () => {
+            userInteracted = true;
+        }, { once: true });
 
         messageInput.focus();
     </script>
