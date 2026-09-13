@@ -802,26 +802,40 @@
         let autoReadEnabled = false;
         let currentUtterance = null;
         let speechSynth = null;
+        let voicesLoaded = false;
+        let voicesLoadPromise = null;
 
         function initSpeechSynthesis() {
-            if ('speechSynthesis' in window) {
-                speechSynth = window.speechSynthesis;
-                
-                const loadVoices = () => {
-                    const voices = speechSynth.getVoices();
-                    console.log('Available voices:', voices.length);
-                    const enVoices = voices.filter(v => v.lang.startsWith('en'));
-                    console.log('English voices:', enVoices.length);
-                };
-                
-                loadVoices();
-                speechSynth.onvoiceschanged = loadVoices;
-                
-                setTimeout(loadVoices, 1000);
-            } else {
+            if (!('speechSynthesis' in window)) {
                 console.warn('Speech synthesis not supported');
-                voiceOutputToggle.style.display = 'none';
+                if (voiceOutputToggle) voiceOutputToggle.style.display = 'none';
+                return;
             }
+
+            speechSynth = window.speechSynthesis;
+            voicesLoadPromise = new Promise((resolve) => {
+                const finish = () => {
+                    const voices = speechSynth.getVoices();
+                    console.log('Voices loaded:', voices.length);
+                    voicesLoaded = true;
+                    resolve(voices);
+                };
+
+                const tryFinish = () => {
+                    if (speechSynth.getVoices().length > 0) {
+                        finish();
+                    } else {
+                        setTimeout(tryFinish, 200);
+                    }
+                };
+
+                if (speechSynth.getVoices().length > 0) {
+                    finish();
+                } else {
+                    speechSynth.onvoiceschanged = tryFinish;
+                    setTimeout(tryFinish, 1000);
+                }
+            });
         }
 
         function extractTextFromHtml(html) {
@@ -830,9 +844,21 @@
             return tmp.textContent || tmp.innerText || '';
         }
 
-        function speakText(text, buttonElement) {
+        async function speakText(text, buttonElement) {
             if (!speechSynth) {
                 console.warn('Speech synthesis not supported');
+                return;
+            }
+
+            try {
+                await voicesLoadPromise;
+            } catch (e) {
+                console.warn('Voice loading failed', e);
+            }
+
+            if (!voicesLoaded) {
+                console.warn('Voices not loaded yet');
+                if (buttonElement) buttonElement.classList.remove('active');
                 return;
             }
 
@@ -842,8 +868,7 @@
                 if (buttonElement) {
                     buttonElement.classList.remove('active');
                 }
-                setTimeout(() => speakText(text, buttonElement), 100);
-                return;
+                await new Promise(resolve => setTimeout(resolve, 150));
             }
 
             const cleanText = extractTextFromHtml(text).trim();
@@ -859,45 +884,35 @@
             utterance.volume = 1;
 
             const voices = speechSynth.getVoices();
-            console.log('Total voices available:', voices.length);
-            
             const enVoices = voices.filter(voice => voice.lang.startsWith('en'));
-            console.log('English voices:', enVoices.length);
-            
+            console.log('Speaking with', voices.length, 'voices,', enVoices.length, 'English');
+
             if (enVoices.length > 0) {
                 const preferredVoice = enVoices.find(voice => 
                     voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Apple')
                 ) || enVoices[0];
                 utterance.voice = preferredVoice;
-                console.log('Using voice:', preferredVoice.name, preferredVoice.lang);
-            } else {
-                console.warn('No English voices available, using default');
+                console.log('Using voice:', preferredVoice.name);
             }
 
             utterance.onstart = () => {
                 console.log('Speech started');
-                if (buttonElement) {
-                    buttonElement.classList.add('active');
-                }
+                if (buttonElement) buttonElement.classList.add('active');
             };
 
             utterance.onend = () => {
-                console.log('Speech ended naturally');
-                if (buttonElement) {
-                    buttonElement.classList.remove('active');
-                }
+                console.log('Speech ended');
+                if (buttonElement) buttonElement.classList.remove('active');
                 currentUtterance = null;
             };
 
             utterance.onerror = (event) => {
-                console.error('Speech error:', event.error, event);
-                if (buttonElement) {
-                    buttonElement.classList.remove('active');
-                }
+                console.error('Speech error:', event.error);
+                if (buttonElement) buttonElement.classList.remove('active');
                 currentUtterance = null;
             };
 
-            console.log('Attempting to speak:', cleanText.substring(0, 50) + '...');
+            console.log('Speaking:', cleanText.substring(0, 50) + '...');
             speechSynth.speak(utterance);
         }
 
@@ -1133,11 +1148,17 @@
         initSpeechSynthesis();
         loadSharedConversation();
 
-        if (speechSynth) {
-            speechSynth.onvoiceschanged = () => {
-                speechSynth.getVoices();
-            };
-        }
+        window.testTTS = async (text) => {
+            if (!text) {
+                const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child .message-content');
+                if (lastAssistantMessage) {
+                    text = extractTextFromHtml(lastAssistantMessage.innerHTML);
+                }
+            }
+            if (text) {
+                await speakText(text, null);
+            }
+        };
 
         attachButton.addEventListener('click', () => {
             imageInput.click();
@@ -1265,25 +1286,27 @@
                 conversationHistory.push({ role: 'assistant', content: fullContent });
 
                 if (autoReadEnabled && fullContent) {
-                    const attemptSpeak = (attempts = 0) => {
-                        setTimeout(() => {
-                            const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
-                            if (!lastAssistantMessage) return;
-                            
-                            const speakBtn = lastAssistantMessage.querySelector('.message-action-btn');
-                            if (!speakBtn) {
-                                if (attempts < 5) {
-                                    attemptSpeak(attempts + 1);
-                                }
-                                return;
-                            }
-                            
-                            const cleanText = extractTextFromHtml(fullContent).trim();
-                            if (cleanText) {
-                                speakText(fullContent, speakBtn);
-                            }
-                        }, Math.min(500 + attempts * 300, 2000));
+                    const attemptSpeak = async (attempts = 0) => {
+                        const maxAttempts = 8;
+                        const delay = Math.min(400 + attempts * 350, 2200);
+
+                        await new Promise(resolve => setTimeout(resolve, delay));
+
+                        const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
+                        if (!lastAssistantMessage) return;
+
+                        const speakBtn = lastAssistantMessage.querySelector('.message-action-btn');
+                        if (!speakBtn && attempts < maxAttempts) {
+                            attemptSpeak(attempts + 1);
+                            return;
+                        }
+
+                        const cleanText = extractTextFromHtml(fullContent).trim();
+                        if (cleanText && speakBtn) {
+                            await speakText(fullContent, speakBtn);
+                        }
                     };
+
                     attemptSpeak();
                 }
 
@@ -1324,12 +1347,13 @@
             }
         }
 
-        voiceOutputToggle.addEventListener('click', () => {
+        voiceOutputToggle.addEventListener('click', async () => {
             autoReadEnabled = !autoReadEnabled;
             voiceOutputToggle.classList.toggle('speaking', autoReadEnabled);
             voiceOutputToggle.textContent = autoReadEnabled ? '🔊 Auto-Read ON' : '🔊 Auto-Read';
             
-            if (autoReadEnabled && speechSynth) {
+            if (autoReadEnabled) {
+                await voicesLoadPromise;
                 const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
                 if (lastAssistantMessage) {
                     const speakBtn = lastAssistantMessage.querySelector('.message-action-btn');
@@ -1341,6 +1365,8 @@
                         }
                     }
                 }
+            } else if (speechSynth && speechSynth.speaking) {
+                speechSynth.cancel();
             }
         });
 
