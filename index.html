@@ -806,6 +806,7 @@
         function initSpeechSynthesis() {
             if ('speechSynthesis' in window) {
                 speechSynth = window.speechSynthesis;
+                speechSynth.getVoices();
             }
         }
 
@@ -817,7 +818,7 @@
 
         function speakText(text, buttonElement) {
             if (!speechSynth) {
-                alert('Text-to-speech is not supported in your browser.');
+                console.warn('Text-to-speech is not supported in your browser.');
                 return;
             }
 
@@ -830,7 +831,10 @@
             }
 
             const cleanText = extractTextFromHtml(text).trim();
-            if (!cleanText) return;
+            if (!cleanText) {
+                console.warn('No text to speak.');
+                return;
+            }
 
             const utterance = new SpeechSynthesisUtterance(cleanText);
             utterance.lang = 'en-US';
@@ -838,32 +842,52 @@
             utterance.pitch = 1;
             utterance.volume = 1;
 
+            const voices = speechSynth.getVoices();
+            const preferredVoice = voices.find(voice => 
+                voice.lang.startsWith('en') && voice.name.includes('Google')
+            ) || voices.find(voice => 
+                voice.lang.startsWith('en')
+            );
+            
+            if (preferredVoice) {
+                utterance.voice = preferredVoice;
+            }
+
             currentUtterance = utterance;
 
             utterance.onstart = () => {
+                console.log('Speech started');
                 if (buttonElement) {
                     buttonElement.classList.add('active');
                 }
             };
 
             utterance.onend = () => {
+                console.log('Speech ended');
                 if (buttonElement) {
                     buttonElement.classList.remove('active');
                 }
                 currentUtterance = null;
             };
 
-            utterance.onerror = () => {
+            utterance.onerror = (event) => {
+                console.error('Speech error:', event.error);
                 if (buttonElement) {
                     buttonElement.classList.remove('active');
                 }
                 currentUtterance = null;
             };
 
+            console.log('Speaking:', cleanText.substring(0, 50) + '...');
             speechSynth.speak(utterance);
         }
 
         function addMessageActions(messageDiv, content) {
+            const contentDiv = messageDiv.querySelector('.message-content');
+            if (!contentDiv || contentDiv.querySelector('.message-actions')) {
+                return;
+            }
+
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'message-actions';
 
@@ -880,7 +904,7 @@
             });
 
             actionsDiv.appendChild(speakBtn);
-            messageDiv.querySelector('.message-content').appendChild(actionsDiv);
+            contentDiv.appendChild(actionsDiv);
         }
 
         function appendMessage(role, content, time = null, imageBase64 = null, imageMime = null, meta = null) {
@@ -1072,6 +1096,12 @@
         initSpeechSynthesis();
         loadSharedConversation();
 
+        if (speechSynth) {
+            speechSynth.onvoiceschanged = () => {
+                speechSynth.getVoices();
+            };
+        }
+
         attachButton.addEventListener('click', () => {
             imageInput.click();
         });
@@ -1199,9 +1229,12 @@
 
                 if (autoReadEnabled && fullContent) {
                     setTimeout(() => {
-                        const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child .message-action-btn');
+                        const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
                         if (lastAssistantMessage) {
-                            speakText(fullContent, lastAssistantMessage);
+                            const speakBtn = lastAssistantMessage.querySelector('.message-action-btn');
+                            if (speakBtn) {
+                                speakText(fullContent, speakBtn);
+                            }
                         }
                     }, 500);
                 }
