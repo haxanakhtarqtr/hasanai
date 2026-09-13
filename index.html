@@ -764,7 +764,7 @@
 
             formatted = formatted.replace(/```(\w+)?\n?([\s\S]*?)```/g, (match, lang, code) => {
                 const escapedCode = code.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                return `<pre><code>${escapedCode}</code><button class="copy-button" onclick="copyCode(this)">Copy</button></pre>`;
+                return `<pre><code>${escapedCode}</code><button class="copy-button">Copy</button></pre>`;
             });
 
             formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -1091,6 +1091,24 @@
                 }
             }
         }
+
+        chatMessages.addEventListener('click', (e) => {
+            if (e.target.classList.contains('copy-button')) {
+                const pre = e.target.closest('pre');
+                const code = pre.querySelector('code').textContent;
+                navigator.clipboard.writeText(code).then(() => {
+                    const originalText = e.target.textContent;
+                    e.target.textContent = 'Copied!';
+                    e.target.style.backgroundColor = '#0e639c';
+                    e.target.style.color = '#ffffff';
+                    setTimeout(() => {
+                        e.target.textContent = originalText;
+                        e.target.style.backgroundColor = '';
+                        e.target.style.color = '';
+                    }, 2000);
+                });
+            }
+        });
 
         initSpeechRecognition();
         initSpeechSynthesis();
