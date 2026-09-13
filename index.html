@@ -466,6 +466,63 @@
             display: none;
         }
 
+        .voice-output-button {
+            background: transparent;
+            border: 1px solid #3e3e42;
+            color: #d4d4d4;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .voice-output-button:hover {
+            background-color: #3e3e42;
+            border-color: #0e639c;
+        }
+
+        .voice-output-button.speaking {
+            background-color: #0e639c;
+            border-color: #0e639c;
+            color: #ffffff;
+        }
+
+        .message-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .message:hover .message-actions {
+            opacity: 1;
+        }
+
+        .message-action-btn {
+            background: transparent;
+            border: 1px solid #3e3e42;
+            color: #d4d4d4;
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            transition: all 0.2s;
+        }
+
+        .message-action-btn:hover {
+            background-color: #3e3e42;
+            border-color: #0e639c;
+        }
+
+        .message-action-btn.active {
+            background-color: #0e639c;
+            border-color: #0e639c;
+            color: #ffffff;
+        }
+
         .usage-info {
             padding: 8px 20px;
             background-color: #2d2d30;
@@ -537,6 +594,7 @@
                 <button class="icon-button" id="exportMarkdown" title="Export as Markdown">MD</button>
                 <button class="icon-button" id="shareChat" title="Share conversation">Share</button>
                 <button class="icon-button" id="clearChat" title="Clear chat">Clear</button>
+                <button class="voice-output-button" id="voiceOutputToggle" title="Toggle auto-read">🔊 Auto-Read</button>
             </div>
         </div>
         <div class="chat-messages" id="chatMessages">
@@ -612,6 +670,7 @@
         const attachButton = document.getElementById('attachButton');
         const cameraButton = document.getElementById('cameraButton');
         const voiceButton = document.getElementById('voiceButton');
+        const voiceOutputToggle = document.getElementById('voiceOutputToggle');
         const imageInput = document.getElementById('imageInput');
         const cameraInput = document.getElementById('cameraInput');
         const imagePreviewContainer = document.getElementById('imagePreviewContainer');
@@ -740,6 +799,90 @@
             });
         }
 
+        let autoReadEnabled = false;
+        let currentUtterance = null;
+        let speechSynth = null;
+
+        function initSpeechSynthesis() {
+            if ('speechSynthesis' in window) {
+                speechSynth = window.speechSynthesis;
+            }
+        }
+
+        function extractTextFromHtml(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            return tmp.textContent || tmp.innerText || '';
+        }
+
+        function speakText(text, buttonElement) {
+            if (!speechSynth) {
+                alert('Text-to-speech is not supported in your browser.');
+                return;
+            }
+
+            if (speechSynth.speaking) {
+                speechSynth.cancel();
+                if (buttonElement) {
+                    buttonElement.classList.remove('active');
+                }
+                return;
+            }
+
+            const cleanText = extractTextFromHtml(text).trim();
+            if (!cleanText) return;
+
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'en-US';
+            utterance.rate = 1;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+
+            currentUtterance = utterance;
+
+            utterance.onstart = () => {
+                if (buttonElement) {
+                    buttonElement.classList.add('active');
+                }
+            };
+
+            utterance.onend = () => {
+                if (buttonElement) {
+                    buttonElement.classList.remove('active');
+                }
+                currentUtterance = null;
+            };
+
+            utterance.onerror = () => {
+                if (buttonElement) {
+                    buttonElement.classList.remove('active');
+                }
+                currentUtterance = null;
+            };
+
+            speechSynth.speak(utterance);
+        }
+
+        function addMessageActions(messageDiv, content) {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'message-actions';
+
+            const speakBtn = document.createElement('button');
+            speakBtn.className = 'message-action-btn';
+            speakBtn.textContent = '🔊 Listen';
+            speakBtn.addEventListener('click', () => {
+                if (speechSynth && speechSynth.speaking) {
+                    speechSynth.cancel();
+                    speakBtn.classList.remove('active');
+                } else {
+                    speakText(content, speakBtn);
+                }
+            });
+
+            actionsDiv.appendChild(speakBtn);
+            messageDiv.querySelector('.message-content').appendChild(actionsDiv);
+        }
+
         function appendMessage(role, content, time = null, imageBase64 = null, imageMime = null, meta = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role}`;
@@ -772,6 +915,11 @@
             
             chatMessages.appendChild(messageDiv);
             scrollToBottom();
+            
+            if (role === 'assistant' && content) {
+                addMessageActions(messageDiv, content);
+            }
+            
             return messageDiv;
         }
 
@@ -921,6 +1069,7 @@
         }
 
         initSpeechRecognition();
+        initSpeechSynthesis();
         loadSharedConversation();
 
         attachButton.addEventListener('click', () => {
@@ -1048,6 +1197,15 @@
 
                 conversationHistory.push({ role: 'assistant', content: fullContent });
 
+                if (autoReadEnabled && fullContent) {
+                    setTimeout(() => {
+                        const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child .message-action-btn');
+                        if (lastAssistantMessage) {
+                            speakText(fullContent, lastAssistantMessage);
+                        }
+                    }, 500);
+                }
+
                 if (usageData) {
                     const promptTokens = usageData.prompt_tokens || 0;
                     const completionTokens = usageData.completion_tokens || 0;
@@ -1067,6 +1225,9 @@
 
         function clearChat() {
             if (confirm('Clear all chat history?')) {
+                if (speechSynth && speechSynth.speaking) {
+                    speechSynth.cancel();
+                }
                 conversationHistory = [];
                 chatMessages.innerHTML = `
                     <div class="message assistant">
@@ -1081,6 +1242,12 @@
                 messageInput.focus();
             }
         }
+
+        voiceOutputToggle.addEventListener('click', () => {
+            autoReadEnabled = !autoReadEnabled;
+            voiceOutputToggle.classList.toggle('speaking', autoReadEnabled);
+            voiceOutputToggle.textContent = autoReadEnabled ? '🔊 Auto-Read ON' : '🔊 Auto-Read';
+        });
 
         clearChatButton.addEventListener('click', clearChat);
         exportJsonButton.addEventListener('click', () => exportConversation('json'));
