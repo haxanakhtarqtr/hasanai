@@ -12,18 +12,45 @@ CORS(app)
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "openrouter/free"
-FALLBACK_MODEL = "openrouter/free"
+FALLBACK_CHAIN = [
+    "openrouter/free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "google/gemma-2-9b-it:free",
+    "nvidia/llama-3.1-nemotron-8b-instruct:free",
+    "microsoft/phi-3-mini-128k-instruct:free",
+    "mistralai/mistral-7b-instruct:free",
+    "qwen/qwen3-coder:free",
+    "poolside/laguna-xs-2.1:free",
+]
 MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
 FREE_MODELS = [
     {"id": "openrouter/free", "name": "Free Model Router"},
+    {"id": "openai/gpt-oss-20b:free", "name": "GPT-OSS 20B"},
+    {"id": "openai/gpt-oss-120b:free", "name": "GPT-OSS 120B"},
+    {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B"},
     {"id": "meta-llama/llama-3.1-8b-instruct:free", "name": "Llama 3.1 8B"},
     {"id": "meta-llama/llama-3.2-3b-instruct:free", "name": "Llama 3.2 3B"},
+    {"id": "google/gemma-4-31b-it:free", "name": "Gemma 4 31B"},
+    {"id": "google/gemma-4-26b-a4b-it:free", "name": "Gemma 4 26B A4B"},
     {"id": "google/gemma-2-9b-it:free", "name": "Gemma 2 9B"},
-    {"id": "nvidia/llama-3.1-nemotron-8b-instruct:free", "name": "Nemotron 8B"},
+    {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "name": "Nemotron 3 Ultra"},
+    {"id": "nvidia/nemotron-3-super-120b-a12b:free", "name": "Nemotron 3 Super"},
+    {"id": "nvidia/nemotron-3-nano-30b-a3b:free", "name": "Nemotron 3 Nano"},
+    {"id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "name": "Nemotron Nano Omni"},
+    {"id": "nvidia/nemotron-3.5-lightning:free", "name": "Nemotron 3.5 Lightning"},
+    {"id": "mistralai/mistral-7b-instruct:free", "name": "Mistral 7B"},
     {"id": "microsoft/phi-3-mini-128k-instruct:free", "name": "Phi-3 Mini"},
+    {"id": "cohere/north-mini-code:free", "name": "North Mini Code"},
+    {"id": "poolside/laguna-m.1:free", "name": "Laguna M.1"},
+    {"id": "poolside/laguna-xs-2.1:free", "name": "Laguna XS.1"},
+    {"id": "poolside/laguna-s-2.1:free", "name": "Laguna S.1"},
+    {"id": "qwen/qwen3-coder:free", "name": "Qwen3 Coder"},
+    {"id": "qwen/qwen3-next-80b-a3b-instruct:free", "name": "Qwen3 Next 80B"},
+    {"id": "z-ai/glm-5.2:free", "name": "GLM 5.2"},
+    {"id": "minimax/minimax-m3:free", "name": "MiniMax M3"},
+    {"id": "minimax/minimax-m2.7:free", "name": "MiniMax M2.7"},
     {"id": "huggingfaceh4/zephyr-7b-beta:free", "name": "Zephyr 7B"},
-    {"id": "mistralai/mistral-7b-instruct:free", "name": "Mistral 7B"}
 ]
 
 def format_sse(data: str, event: str = None) -> str:
@@ -101,27 +128,30 @@ def chat():
 
     def generate():
         tried_fallback = False
+        fallback_index = [0]
         
         def try_model(model_name):
             nonlocal tried_fallback
             payload["model"] = model_name
             try:
                 with requests.post(OPENROUTER_URL, headers=headers, json=payload, stream=True, timeout=60) as resp:
-                    usage = None
-                    if resp.status_code == 200:
-                        usage = {
-                            'prompt_tokens': resp.headers.get('x-usage-prompt-tokens'),
-                            'completion_tokens': resp.headers.get('x-usage-completion-tokens'),
-                            'total_tokens': resp.headers.get('x-usage-total-tokens')
-                        }
-                    
                     if resp.status_code == 402 and not tried_fallback:
                         tried_fallback = True
                         yield format_sse(json.dumps({
                             "error": "Primary model unavailable. Trying a free alternative...",
                             "retry": True
                         }))
-                        for chunk in try_model(FALLBACK_MODEL):
+                        for chunk in try_next_free_model(fallback_index):
+                            yield chunk
+                        return
+                    
+                    if resp.status_code == 429 and not tried_fallback:
+                        tried_fallback = True
+                        yield format_sse(json.dumps({
+                            "error": "Rate limit exceeded. Trying another free model...",
+                            "retry": True
+                        }))
+                        for chunk in try_next_free_model(fallback_index):
                             yield chunk
                         return
                     
@@ -156,8 +186,6 @@ def chat():
                             if line.startswith('data: '):
                                 line = line[6:]
                             if line.strip() == '[DONE]':
-                                if usage and any(v for v in usage.values()):
-                                    yield format_sse(json.dumps({"usage": usage}))
                                 yield format_sse(json.dumps({"done": True}))
                                 return
                             try:
@@ -181,6 +209,22 @@ def chat():
                 yield format_sse(json.dumps({
                     "error": f"An unexpected error occurred: {str(e)}"
                 }))
+
+        def try_next_free_model(index_ref):
+            for i in range(1, len(FALLBACK_CHAIN)):
+                next_index = (index_ref[0] + i) % len(FALLBACK_CHAIN)
+                if next_index == 0 and i > 0:
+                    continue
+                index_ref[0] = next_index
+                yield format_sse(json.dumps({
+                    "error": f"Trying alternative model: {FALLBACK_CHAIN[next_index].split('/')[-1]}"
+                }))
+                for chunk in try_model(FALLBACK_CHAIN[next_index]):
+                    yield chunk
+                return
+            yield format_sse(json.dumps({
+                "error": "All models are currently unavailable. Please try again later."
+            }))
 
         yield from try_model(selected_model)
 
