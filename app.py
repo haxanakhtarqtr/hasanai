@@ -9,7 +9,7 @@ CORS(app)
 
 OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "qwen/qwen-2.5-coder-32b-instruct:free"
+MODEL = "qwen/qwen-2.5-coder-32b-instruct"
 
 def format_sse(data: str, event: str = None) -> str:
     msg = f"data: {data}\n\n"
