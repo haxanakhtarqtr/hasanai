@@ -174,6 +174,13 @@
             font-style: italic;
         }
 
+        .message-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 8px;
+            border: 1px solid #3e3e42;
+        }
+
         .copy-button {
             position: absolute;
             top: 8px;
@@ -306,6 +313,81 @@
             opacity: 0.6;
         }
 
+        .image-preview-container {
+            padding: 12px 20px;
+            background-color: #2d2d30;
+            border-top: 1px solid #3e3e42;
+            display: none;
+            gap: 12px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .image-preview-container.active {
+            display: flex;
+        }
+
+        .image-preview {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #0e639c;
+        }
+
+        .image-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .image-preview .remove-image {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border: none;
+            color: #ffffff;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 12px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-preview-info {
+            flex: 1;
+            font-size: 12px;
+            color: #858585;
+        }
+
+        .attach-button {
+            background: transparent;
+            border: 1px solid #3e3e42;
+            color: #d4d4d4;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .attach-button:hover {
+            background-color: #3e3e42;
+            border-color: #0e639c;
+        }
+
+        #imageInput {
+            display: none;
+        }
+
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -368,9 +450,27 @@
                 <span></span>
                 <span></span>
             </div>
-            <span style="margin-left: 8px;">Thinking...</span>
+            <span style="margin-left: 4px;">Thinking...</span>
+        </div>
+        <div class="image-preview-container" id="imagePreviewContainer">
+            <div class="image-preview" id="imagePreview">
+                <img id="previewImg" src="" alt="Preview">
+                <button class="remove-image" id="removeImage">×</button>
+            </div>
+            <div class="image-preview-info">
+                <div id="imageName">image.jpg</div>
+                <div style="font-size: 10px; margin-top: 2px;">Ready to send</div>
+            </div>
         </div>
         <div class="chat-input-container">
+            <button class="attach-button" id="attachButton" title="Attach image">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                </svg>
+            </button>
+            <input type="file" id="imageInput" accept="image/jpeg,image/png,image/gif,image/webp">
             <textarea
                 class="chat-input"
                 id="messageInput"
@@ -387,9 +487,16 @@
         const sendButton = document.getElementById('sendButton');
         const typingIndicator = document.getElementById('typingIndicator');
         const clearChatButton = document.getElementById('clearChat');
+        const attachButton = document.getElementById('attachButton');
+        const imageInput = document.getElementById('imageInput');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+        const previewImg = document.getElementById('previewImg');
+        const imageName = document.getElementById('imageName');
+        const removeImageButton = document.getElementById('removeImage');
 
         let conversationHistory = [];
         let isStreaming = false;
+        let selectedImage = null;
 
         function updateWelcomeTime() {
             const now = new Date();
@@ -462,19 +569,27 @@
             });
         }
 
-        function appendMessage(role, content, time = null) {
+        function appendMessage(role, content, time = null, imageBase64 = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role}`;
             
             const currentTime = time || getCurrentTime();
             const roleName = role === 'user' ? 'You' : 'HasanAI';
             
+            let contentHtml = '';
+            if (imageBase64) {
+                contentHtml += `<img src="data:image/jpeg;base64,${imageBase64}" class="message-image" alt="Uploaded image"><br>`;
+            }
+            if (content) {
+                contentHtml += formatMessage(content);
+            }
+            
             messageDiv.innerHTML = `
                 <div class="message-header">
                     <span>${roleName}</span>
                     <span class="message-time">${currentTime}</span>
                 </div>
-                <div class="message-content">${formatMessage(content)}</div>
+                <div class="message-content">${contentHtml}</div>
             `;
             
             chatMessages.appendChild(messageDiv);
@@ -482,22 +597,79 @@
             return messageDiv;
         }
 
+        attachButton.addEventListener('click', () => {
+            imageInput.click();
+        });
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                selectedImage = event.target.result.split(',')[1];
+                previewImg.src = event.target.result;
+                imageName.textContent = file.name;
+                imagePreviewContainer.classList.add('active');
+            };
+            reader.readAsDataURL(file);
+        });
+
+        removeImageButton.addEventListener('click', () => {
+            selectedImage = null;
+            imageInput.value = '';
+            imagePreviewContainer.classList.remove('active');
+        });
+
         async function sendMessage() {
             const message = messageInput.value.trim();
-            if (!message || isStreaming) return;
+            if (!message && !selectedImage) return;
+            if (isStreaming) return;
 
             isStreaming = true;
             sendButton.disabled = true;
             messageInput.value = '';
             autoResizeTextarea();
 
-            appendMessage('user', message);
-            conversationHistory.push({ role: 'user', content: message });
+            const currentTime = getCurrentTime();
+            const userMessage = { role: 'user', content: [] };
 
-            const assistantMessageDiv = appendMessage('assistant', '');
+            if (selectedImage) {
+                userMessage.content.push({
+                    type: 'image_url',
+                    image_url: {
+                        url: `data:image/jpeg;base64,${selectedImage}`
+                    }
+                });
+            }
+
+            if (message) {
+                userMessage.content.push({
+                    type: 'text',
+                    text: message
+                });
+            }
+
+            if (userMessage.content.length === 1 && userMessage.content[0].type === 'text') {
+                userMessage.content = userMessage.content[0].text;
+            }
+
+            appendMessage('user', message, currentTime, selectedImage);
+            conversationHistory.push(userMessage);
+
+            const assistantMessageDiv = appendMessage('assistant', '', currentTime);
             const contentDiv = assistantMessageDiv.querySelector('.message-content');
             typingIndicator.classList.add('active');
             scrollToBottom();
+
+            selectedImage = null;
+            imageInput.value = '';
+            imagePreviewContainer.classList.remove('active');
 
             try {
                 const response = await fetch('/api/chat', {

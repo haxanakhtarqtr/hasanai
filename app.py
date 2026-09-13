@@ -12,6 +12,8 @@ OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "openrouter/free"
 FALLBACK_MODEL = "openrouter/free"
+MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
 
 def format_sse(data: str, event: str = None) -> str:
     msg = f"data: {data}\n\n"
@@ -27,7 +29,7 @@ def healthz():
         'timestamp': int(time.time())
     })
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     return send_from_directory('.', 'index.html')
 
@@ -42,6 +44,30 @@ def chat():
 
     data = request.get_json()
     messages = data.get('messages', [])
+
+    for msg in messages:
+        if isinstance(msg.get('content'), list):
+            for item in msg['content']:
+                if item.get('type') == 'image_url':
+                    image_url = item.get('image_url', {}).get('url', '')
+                    if image_url.startswith('data:'):
+                        try:
+                            header, base64_data = image_url.split(',', 1)
+                            import base64
+                            import imghdr
+                            image_bytes = base64.b64decode(base64_data)
+                            if len(image_bytes) > MAX_IMAGE_SIZE_BYTES:
+                                return Response(
+                                    format_sse(json.dumps({"error": f"Image too large. Maximum size is {MAX_IMAGE_SIZE_BYTES // 1024 // 1024}MB"})),
+                                    status=400,
+                                    content_type='text/event-stream'
+                                )
+                        except Exception as e:
+                            return Response(
+                                format_sse(json.dumps({"error": f"Invalid image data: {str(e)}"})),
+                                status=400,
+                                content_type='text/event-stream'
+                            )
 
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
