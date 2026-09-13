@@ -497,6 +497,7 @@
         let conversationHistory = [];
         let isStreaming = false;
         let selectedImage = null;
+        let selectedImageMime = 'image/jpeg';
 
         function updateWelcomeTime() {
             const now = new Date();
@@ -569,7 +570,7 @@
             });
         }
 
-        function appendMessage(role, content, time = null, imageBase64 = null) {
+        function appendMessage(role, content, time = null, imageBase64 = null, imageMime = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role}`;
             
@@ -578,7 +579,8 @@
             
             let contentHtml = '';
             if (imageBase64) {
-                contentHtml += `<img src="data:image/jpeg;base64,${imageBase64}" class="message-image" alt="Uploaded image"><br>`;
+                const mime = imageMime || 'image/jpeg';
+                contentHtml += `<img src="data:${mime};base64,${imageBase64}" class="message-image" alt="Uploaded image"><br>`;
             }
             if (content) {
                 contentHtml += formatMessage(content);
@@ -610,6 +612,7 @@
                 return;
             }
 
+            selectedImageMime = file.type || 'image/jpeg';
             const reader = new FileReader();
             reader.onload = (event) => {
                 selectedImage = event.target.result.split(',')[1];
@@ -643,7 +646,7 @@
                 userMessage.content.push({
                     type: 'image_url',
                     image_url: {
-                        url: `data:image/jpeg;base64,${selectedImage}`
+                        url: `data:${selectedImageMime};base64,${selectedImage}`
                     }
                 });
             }
@@ -659,7 +662,7 @@
                 userMessage.content = userMessage.content[0].text;
             }
 
-            appendMessage('user', message, currentTime, selectedImage);
+            appendMessage('user', message, currentTime, selectedImage, selectedImageMime);
             conversationHistory.push(userMessage);
 
             const assistantMessageDiv = appendMessage('assistant', '', currentTime);

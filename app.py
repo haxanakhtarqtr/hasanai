@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import base64
 import requests
 from flask import Flask, request, Response, stream_with_context, send_from_directory, jsonify
 from flask_cors import CORS
@@ -53,8 +54,6 @@ def chat():
                     if image_url.startswith('data:'):
                         try:
                             header, base64_data = image_url.split(',', 1)
-                            import base64
-                            import imghdr
                             image_bytes = base64.b64decode(base64_data)
                             if len(image_bytes) > MAX_IMAGE_SIZE_BYTES:
                                 return Response(
@@ -116,6 +115,8 @@ def chat():
                         try:
                             error_data = resp.json()
                             error_msg = error_data.get('error', {}).get('message', resp.text)
+                            if 'image' in error_msg.lower() or 'vision' in error_msg.lower() or 'multimodal' in error_msg.lower():
+                                error_msg = "Image processing failed. The current model may not support this image format. Try a different image or clear the image and send text only."
                         except:
                             error_msg = resp.text or f"HTTP {resp.status_code}"
                         yield format_sse(json.dumps({
