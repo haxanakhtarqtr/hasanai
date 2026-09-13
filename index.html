@@ -466,63 +466,6 @@
             display: none;
         }
 
-        .voice-output-button {
-            background: transparent;
-            border: 1px solid #3e3e42;
-            color: #d4d4d4;
-            padding: 6px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 12px;
-            white-space: nowrap;
-        }
-
-        .voice-output-button:hover {
-            background-color: #3e3e42;
-            border-color: #0e639c;
-        }
-
-        .voice-output-button.speaking {
-            background-color: #0e639c;
-            border-color: #0e639c;
-            color: #ffffff;
-        }
-
-        .message-actions {
-            display: flex;
-            gap: 6px;
-            margin-top: 6px;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .message:hover .message-actions {
-            opacity: 1;
-        }
-
-        .message-action-btn {
-            background: transparent;
-            border: 1px solid #3e3e42;
-            color: #d4d4d4;
-            padding: 2px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 10px;
-            transition: all 0.2s;
-        }
-
-        .message-action-btn:hover {
-            background-color: #3e3e42;
-            border-color: #0e639c;
-        }
-
-        .message-action-btn.active {
-            background-color: #0e639c;
-            border-color: #0e639c;
-            color: #ffffff;
-        }
-
         .usage-info {
             padding: 8px 20px;
             background-color: #2d2d30;
@@ -588,7 +531,9 @@
             </h1>
             <div class="header-controls">
                 <select class="model-select" id="modelSelect" title="Select model">
-                    <option value="openrouter/free">Free Model Router</option>
+                    <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                 </select>
                 <button class="icon-button" id="exportJson" title="Export as JSON">JSON</button>
                 <button class="icon-button" id="exportMarkdown" title="Export as Markdown">MD</button>
@@ -691,76 +636,12 @@
         let recognition = null;
         let isRecording = false;
 
-        const FREE_MODELS = [
-            { id: 'openrouter/free', name: 'Free Model Router' },
-            { id: 'openai/gpt-oss-20b:free', name: 'GPT-OSS 20B' },
-            { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B' },
-            { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B' },
-            { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama 3.1 8B' },
-            { id: 'meta-llama/llama-3.2-3b-instruct:free', name: 'Llama 3.2 3B' },
-            { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B' },
-            { id: 'google/gemma-4-26b-a4b-it:free', name: 'Gemma 4 26B A4B' },
-            { id: 'google/gemma-2-9b-it:free', name: 'Gemma 2 9B' },
-            { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra' },
-            { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super' },
-            { id: 'nvidia/nemotron-3-nano-30b-a3b:free', name: 'Nemotron 3 Nano' },
-            { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'Nemotron Nano Omni' },
-            { id: 'nvidia/nemotron-3.5-lightning:free', name: 'Nemotron 3.5 Lightning' },
-            { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B' },
-            { id: 'microsoft/phi-3-mini-128k-instruct:free', name: 'Phi-3 Mini' },
-            { id: 'cohere/north-mini-code:free', name: 'North Mini Code' },
-            { id: 'poolside/laguna-m.1:free', name: 'Laguna M.1' },
-            { id: 'poolside/laguna-xs-2.1:free', name: 'Laguna XS.1' },
-            { id: 'poolside/laguna-s-2.1:free', name: 'Laguna S.1' },
-            { id: 'qwen/qwen3-coder:free', name: 'Qwen3 Coder' },
-            { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 Next 80B' },
-            { id: 'z-ai/glm-5.2:free', name: 'GLM 5.2' },
-            { id: 'minimax/minimax-m3:free', name: 'MiniMax M3' },
-            { id: 'minimax/minimax-m2.7:free', name: 'MiniMax M2.7' },
-            { id: 'huggingfaceh4/zephyr-7b-beta:free', name: 'Zephyr 7B' }
-        ];
-
-        async function loadModels() {
-            try {
-                const response = await fetch('/api/models');
-                if (response.ok) {
-                    const data = await response.json();
-                    modelSelect.innerHTML = '';
-                    data.models.forEach(model => {
-                        const option = document.createElement('option');
-                        option.value = model.id;
-                        option.textContent = model.name;
-                        if (model.id === data.default) {
-                            option.selected = true;
-                        }
-                        modelSelect.appendChild(option);
-                    });
-                    
-                    const geminiOptions = [
-                        { id: 'google/gemini-2.5-flash:free', name: 'Gemini 2.5 Flash (Google)' },
-                        { id: 'google/gemini-1.5-flash:free', name: 'Gemini 1.5 Flash (Google)' }
-                    ];
-                    
-                    geminiOptions.forEach(model => {
-                        const option = document.createElement('option');
-                        option.value = model.id;
-                        option.textContent = model.name;
-                        modelSelect.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error('Failed to load models:', error);
-            }
-        }
-
         function handleImageSelect(file) {
             if (!file) return;
-
             if (!file.type.startsWith('image/')) {
                 alert('Please select an image file');
                 return;
             }
-
             selectedImageMime = file.type || 'image/jpeg';
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -803,29 +684,40 @@
 
         function formatMessage(text) {
             let formatted = escapeHtml(text);
-
             formatted = formatted.replace(/&gt;\n/g, '&gt;\n');
-
             formatted = formatted.replace(/```(\w+)?\n?([\s\S]*?)```/g, (match, lang, code) => {
                 const escapedCode = code.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 return `<pre><code>${escapedCode}</code><button class="copy-button">Copy</button></pre>`;
             });
-
             formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
             formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
             formatted = formatted.replace(/^### (.+)$/gm, '<h3>$1</h3>');
             formatted = formatted.replace(/^## (.+)$/gm, '<h2>$1</h2>');
             formatted = formatted.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-
             formatted = formatted.replace(/^\s*[-*] (.+)$/gm, '<li>$1</li>');
             formatted = formatted.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
-
             formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
-
             formatted = formatted.replace(/\n/g, '<br>');
-
             return formatted;
         }
+
+        chatMessages.addEventListener('click', (e) => {
+            if (e.target.classList.contains('copy-button')) {
+                const pre = e.target.closest('pre');
+                const code = pre.querySelector('code').textContent;
+                navigator.clipboard.writeText(code).then(() => {
+                    const originalText = e.target.textContent;
+                    e.target.textContent = 'Copied!';
+                    e.target.style.backgroundColor = '#0e639c';
+                    e.target.style.color = '#ffffff';
+                    setTimeout(() => {
+                        e.target.textContent = originalText;
+                        e.target.style.backgroundColor = '';
+                        e.target.style.color = '';
+                    }, 2000);
+                });
+            }
+        });
 
         function copyCode(button) {
             const pre = button.parentElement;
@@ -843,155 +735,11 @@
             });
         }
 
-        let autoReadEnabled = false;
-        let currentUtterance = null;
-        let speechSynth = null;
-        let voicesLoaded = false;
-        let voicesLoadPromise = null;
-
-        function initSpeechSynthesis() {
-            if (!('speechSynthesis' in window)) {
-                console.warn('Speech synthesis not supported');
-                if (voiceOutputToggle) voiceOutputToggle.style.display = 'none';
-                return;
-            }
-
-            speechSynth = window.speechSynthesis;
-            voicesLoadPromise = new Promise((resolve) => {
-                const finish = () => {
-                    const voices = speechSynth.getVoices();
-                    console.log('Voices loaded:', voices.length);
-                    voicesLoaded = true;
-                    resolve(voices);
-                };
-
-                const tryFinish = () => {
-                    if (speechSynth.getVoices().length > 0) {
-                        finish();
-                    } else {
-                        setTimeout(tryFinish, 200);
-                    }
-                };
-
-                if (speechSynth.getVoices().length > 0) {
-                    finish();
-                } else {
-                    speechSynth.onvoiceschanged = tryFinish;
-                    setTimeout(tryFinish, 1000);
-                }
-            });
-        }
-
-        function extractTextFromHtml(html) {
-            const tmp = document.createElement('div');
-            tmp.innerHTML = html;
-            return tmp.textContent || tmp.innerText || '';
-        }
-
-        async function speakText(text, buttonElement) {
-            if (!speechSynth) {
-                console.warn('Speech synthesis not supported');
-                return;
-            }
-
-            try {
-                await voicesLoadPromise;
-            } catch (e) {
-                console.warn('Voice loading failed', e);
-            }
-
-            if (!voicesLoaded) {
-                console.warn('Voices not loaded yet');
-                if (buttonElement) buttonElement.classList.remove('active');
-                return;
-            }
-
-            if (speechSynth.speaking) {
-                console.log('Stopping current speech');
-                speechSynth.cancel();
-                if (buttonElement) {
-                    buttonElement.classList.remove('active');
-                }
-                await new Promise(resolve => setTimeout(resolve, 150));
-            }
-
-            const cleanText = extractTextFromHtml(text).trim();
-            if (!cleanText) {
-                console.warn('No text to speak');
-                return;
-            }
-
-            const utterance = new SpeechSynthesisUtterance(cleanText);
-            utterance.lang = 'en-US';
-            utterance.rate = 1;
-            utterance.pitch = 1;
-            utterance.volume = 1;
-
-            const voices = speechSynth.getVoices();
-            const enVoices = voices.filter(voice => voice.lang.startsWith('en'));
-            console.log('Speaking with', voices.length, 'voices,', enVoices.length, 'English');
-
-            if (enVoices.length > 0) {
-                const preferredVoice = enVoices.find(voice => 
-                    voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Apple')
-                ) || enVoices[0];
-                utterance.voice = preferredVoice;
-                console.log('Using voice:', preferredVoice.name);
-            }
-
-            utterance.onstart = () => {
-                console.log('Speech started');
-                if (buttonElement) buttonElement.classList.add('active');
-            };
-
-            utterance.onend = () => {
-                console.log('Speech ended');
-                if (buttonElement) buttonElement.classList.remove('active');
-                currentUtterance = null;
-            };
-
-            utterance.onerror = (event) => {
-                console.error('Speech error:', event.error);
-                if (buttonElement) buttonElement.classList.remove('active');
-                currentUtterance = null;
-            };
-
-            console.log('Speaking:', cleanText.substring(0, 50) + '...');
-            speechSynth.speak(utterance);
-        }
-
-        function addMessageActions(messageDiv, content) {
-            const contentDiv = messageDiv.querySelector('.message-content');
-            if (!contentDiv || contentDiv.querySelector('.message-actions')) {
-                return;
-            }
-
-            const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'message-actions';
-
-            const speakBtn = document.createElement('button');
-            speakBtn.className = 'message-action-btn';
-            speakBtn.textContent = '🔊 Listen';
-            speakBtn.addEventListener('click', async () => {
-                if (speechSynth && speechSynth.speaking) {
-                    speechSynth.cancel();
-                    speakBtn.classList.remove('active');
-                } else {
-                    await speakText(content, speakBtn);
-                }
-            });
-
-            actionsDiv.appendChild(speakBtn);
-            contentDiv.appendChild(actionsDiv);
-        }
-
         function appendMessage(role, content, time = null, imageBase64 = null, imageMime = null, meta = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role}`;
-            
             const currentTime = time || getCurrentTime();
             const roleName = role === 'user' ? 'You' : 'HasanAI';
-            
             let contentHtml = '';
             if (imageBase64) {
                 const mime = imageMime || 'image/jpeg';
@@ -1000,12 +748,10 @@
             if (content) {
                 contentHtml += formatMessage(content);
             }
-            
             let metaHtml = '';
             if (meta) {
                 metaHtml = `<div class="message-meta"><span>${escapeHtml(meta)}</span></div>`;
             }
-            
             messageDiv.innerHTML = `
                 <div class="message-header">
                     <span>${roleName}</span>
@@ -1014,14 +760,8 @@
                 <div class="message-content">${contentHtml}</div>
                 ${metaHtml}
             `;
-            
             chatMessages.appendChild(messageDiv);
             scrollToBottom();
-            
-            if (role === 'assistant' && content) {
-                addMessageActions(messageDiv, content);
-            }
-            
             return messageDiv;
         }
 
@@ -1030,32 +770,27 @@
                 voiceButton.style.display = 'none';
                 return;
             }
-
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognition = new SpeechRecognition();
             recognition.continuous = false;
             recognition.interimResults = false;
             recognition.lang = 'en-US';
-
             recognition.onstart = () => {
                 isRecording = true;
                 voiceButton.classList.add('recording');
                 messageInput.placeholder = 'Listening...';
             };
-
             recognition.onend = () => {
                 isRecording = false;
                 voiceButton.classList.remove('recording');
                 messageInput.placeholder = 'Type your message here... (Shift+Enter for new line)';
             };
-
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
                 messageInput.value = transcript;
                 autoResizeTextarea();
                 messageInput.focus();
             };
-
             recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
                 isRecording = false;
@@ -1069,7 +804,6 @@
 
         function toggleRecording() {
             if (!recognition) return;
-
             if (isRecording) {
                 recognition.stop();
             } else {
@@ -1082,9 +816,7 @@
                 alert('No conversation to export');
                 return;
             }
-
             let content, filename, type;
-
             if (format === 'json') {
                 content = JSON.stringify(conversationHistory, null, 2);
                 filename = 'hasanai-chat.json';
@@ -1110,7 +842,6 @@
                 filename = 'hasanai-chat.md';
                 type = 'text/markdown';
             }
-
             const blob = new Blob([content], { type });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -1125,11 +856,9 @@
                 alert('No conversation to share');
                 return;
             }
-
             try {
                 const compressed = btoa(encodeURIComponent(JSON.stringify(conversationHistory)));
                 const shareUrl = `${window.location.origin}${window.location.pathname}#chat=${compressed}`;
-                
                 navigator.clipboard.writeText(shareUrl).then(() => {
                     alert('Share link copied to clipboard!');
                 }).catch(() => {
@@ -1147,7 +876,6 @@
                     const compressed = hash.substring(6);
                     const json = decodeURIComponent(atob(compressed));
                     conversationHistory = JSON.parse(json);
-                    
                     chatMessages.innerHTML = '';
                     conversationHistory.forEach(msg => {
                         if (msg.role === 'user') {
@@ -1161,7 +889,6 @@
                             appendMessage('assistant', content);
                         }
                     });
-                    
                     window.location.hash = '';
                     scrollToBottom();
                 } catch (e) {
@@ -1170,32 +897,113 @@
             }
         }
 
-        chatMessages.addEventListener('click', (e) => {
-            if (e.target.classList.contains('copy-button')) {
-                const pre = e.target.closest('pre');
-                const code = pre.querySelector('code').textContent;
-                navigator.clipboard.writeText(code).then(() => {
-                    const originalText = e.target.textContent;
-                    e.target.textContent = 'Copied!';
-                    e.target.style.backgroundColor = '#0e639c';
-                    e.target.style.color = '#ffffff';
-                    setTimeout(() => {
-                        e.target.textContent = originalText;
-                        e.target.style.backgroundColor = '';
-                        e.target.style.color = '';
-                    }, 2000);
-                });
+        function initSpeechSynthesis() {
+            if (!('speechSynthesis' in window)) {
+                console.warn('Speech synthesis not supported');
+                if (voiceOutputToggle) voiceOutputToggle.style.display = 'none';
+                return;
             }
-        });
+            speechSynth = window.speechSynthesis;
+            voicesLoadPromise = new Promise((resolve) => {
+                const finish = () => {
+                    const voices = speechSynth.getVoices();
+                    console.log('Voices loaded:', voices.length);
+                    voicesLoaded = true;
+                    resolve(voices);
+                };
+                const tryFinish = () => {
+                    if (speechSynth.getVoices().length > 0) {
+                        finish();
+                    } else {
+                        setTimeout(tryFinish, 200);
+                    }
+                };
+                if (speechSynth.getVoices().length > 0) {
+                    finish();
+                } else {
+                    speechSynth.onvoiceschanged = tryFinish;
+                    setTimeout(tryFinish, 1000);
+                }
+            });
+        }
+
+        async function speakText(text, buttonElement) {
+            if (!speechSynth) {
+                console.warn('Speech synthesis not supported');
+                return;
+            }
+            try {
+                await voicesLoadPromise;
+            } catch (e) {
+                console.warn('Voice loading failed', e);
+            }
+            if (!voicesLoaded) {
+                console.warn('Voices not loaded yet');
+                if (buttonElement) buttonElement.classList.remove('active');
+                return;
+            }
+            if (speechSynth.speaking) {
+                speechSynth.cancel();
+                if (buttonElement) buttonElement.classList.remove('active');
+                await new Promise(resolve => setTimeout(resolve, 150));
+            }
+            const cleanText = extractTextFromHtml(text).trim();
+            if (!cleanText) return;
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'en-US';
+            utterance.rate = 1;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+            const voices = speechSynth.getVoices();
+            const enVoices = voices.filter(voice => voice.lang.startsWith('en'));
+            if (enVoices.length > 0) {
+                const preferredVoice = enVoices.find(voice => 
+                    voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Apple')
+                ) || enVoices[0];
+                utterance.voice = preferredVoice;
+            }
+            utterance.onstart = () => {
+                if (buttonElement) buttonElement.classList.add('active');
+            };
+            utterance.onend = () => {
+                if (buttonElement) buttonElement.classList.remove('active');
+                currentUtterance = null;
+            };
+            utterance.onerror = (event) => {
+                console.error('Speech error:', event.error);
+                if (buttonElement) buttonElement.classList.remove('active');
+                currentUtterance = null;
+            };
+            speechSynth.speak(utterance);
+        }
+
+        function addMessageActions(messageDiv, content) {
+            const contentDiv = messageDiv.querySelector('.message-content');
+            if (!contentDiv || contentDiv.querySelector('.message-actions')) return;
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'message-actions';
+            const speakBtn = document.createElement('button');
+            speakBtn.className = 'message-action-btn';
+            speakBtn.textContent = '🔊 Listen';
+            speakBtn.addEventListener('click', async () => {
+                if (speechSynth && speechSynth.speaking) {
+                    speechSynth.cancel();
+                    speakBtn.classList.remove('active');
+                } else {
+                    await speakText(content, speakBtn);
+                }
+            });
+            actionsDiv.appendChild(speakBtn);
+            contentDiv.appendChild(actionsDiv);
+        }
 
         initSpeechRecognition();
         initSpeechSynthesis();
         loadSharedConversation();
-        loadModels();
 
         window.testTTS = async (text) => {
             if (!text) {
-                const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child .message-content');
+                const lastAssistantMessage = document.querySelector('.message.assistant:last-child .message-content');
                 if (lastAssistantMessage) {
                     text = extractTextFromHtml(lastAssistantMessage.innerHTML);
                 }
@@ -1277,10 +1085,7 @@
             let usageData = null;
 
             try {
-                const isGoogleModel = modelSelect.value.startsWith('google/');
-                const endpoint = isGoogleModel ? '/api/chat/google' : '/api/chat';
-                
-                const response = await fetch(endpoint, {
+                const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1320,9 +1125,6 @@
                                     if (parsed.error) {
                                         contentDiv.innerHTML = `<span style="color: #f48771;">Error: ${escapeHtml(parsed.error)}</span>`;
                                     }
-                                    if (parsed.usage) {
-                                        usageData = parsed.usage;
-                                    }
                                 } catch (e) {
                                     // Ignore parse errors for incomplete chunks
                                 }
@@ -1332,24 +1134,6 @@
                 }
 
                 conversationHistory.push({ role: 'assistant', content: fullContent });
-
-                if (autoReadEnabled && fullContent) {
-                    setTimeout(async () => {
-                        await voicesLoadPromise;
-                        const cleanText = extractTextFromHtml(fullContent).trim();
-                        if (cleanText) {
-                            await speakText(fullContent, null);
-                        }
-                    }, 800);
-                }
-
-                if (usageData) {
-                    const promptTokens = usageData.prompt_tokens || 0;
-                    const completionTokens = usageData.completion_tokens || 0;
-                    const totalTokens = usageData.total_tokens || promptTokens + completionTokens;
-                    usageText.textContent = `Tokens: ${promptTokens} prompt + ${completionTokens} completion = ${totalTokens} total`;
-                    usageInfo.classList.add('active');
-                }
             } catch (error) {
                 contentDiv.innerHTML = `<span style="color: #f48771;">Error: ${escapeHtml(error.message)}</span>`;
             } finally {
@@ -1379,37 +1163,6 @@
                 messageInput.focus();
             }
         }
-
-        voiceOutputToggle.addEventListener('click', async () => {
-            autoReadEnabled = !autoReadEnabled;
-            voiceOutputToggle.classList.toggle('speaking', autoReadEnabled);
-            voiceOutputToggle.textContent = autoReadEnabled ? '🔊 Auto-Read ON' : '🔊 Auto-Read';
-            
-            if (!autoReadEnabled && speechSynth && speechSynth.speaking) {
-                speechSynth.cancel();
-                return;
-            }
-            
-            if (autoReadEnabled) {
-                await voicesLoadPromise;
-                const lastAssistantMessage = chatMessages.querySelector('.message.assistant:last-child');
-                if (lastAssistantMessage) {
-                    const content = lastAssistantMessage.querySelector('.message-content');
-                    if (content) {
-                        const text = extractTextFromHtml(content.innerHTML);
-                        if (text.trim()) {
-                            await speakText(text, null);
-                        }
-                    }
-                }
-            }
-        });
-
-        window.addEventListener('load', () => {
-            if (speechSynth) {
-                console.log('Page loaded, voices:', speechSynth.getVoices().length);
-            }
-        });
 
         clearChatButton.addEventListener('click', clearChat);
         exportJsonButton.addEventListener('click', () => exportConversation('json'));
