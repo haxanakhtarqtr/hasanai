@@ -384,7 +384,29 @@
             border-color: #0e639c;
         }
 
+        .camera-button {
+            background: transparent;
+            border: 1px solid #3e3e42;
+            color: #d4d4d4;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .camera-button:hover {
+            background-color: #3e3e42;
+            border-color: #0e639c;
+        }
+
         #imageInput {
+            display: none;
+        }
+
+        #cameraInput {
             display: none;
         }
 
@@ -471,6 +493,13 @@
                 </svg>
             </button>
             <input type="file" id="imageInput" accept="image/jpeg,image/png,image/gif,image/webp">
+            <button class="camera-button" id="cameraButton" title="Take photo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+            </button>
+            <input type="file" id="cameraInput" accept="image/jpeg,image/png,image/gif,image/webp" capture="environment">
             <textarea
                 class="chat-input"
                 id="messageInput"
@@ -488,7 +517,9 @@
         const typingIndicator = document.getElementById('typingIndicator');
         const clearChatButton = document.getElementById('clearChat');
         const attachButton = document.getElementById('attachButton');
+        const cameraButton = document.getElementById('cameraButton');
         const imageInput = document.getElementById('imageInput');
+        const cameraInput = document.getElementById('cameraInput');
         const imagePreviewContainer = document.getElementById('imagePreviewContainer');
         const previewImg = document.getElementById('previewImg');
         const imageName = document.getElementById('imageName');
@@ -498,6 +529,25 @@
         let isStreaming = false;
         let selectedImage = null;
         let selectedImageMime = 'image/jpeg';
+
+        function handleImageSelect(file) {
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                return;
+            }
+
+            selectedImageMime = file.type || 'image/jpeg';
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                selectedImage = event.target.result.split(',')[1];
+                previewImg.src = event.target.result;
+                imageName.textContent = file.name;
+                imagePreviewContainer.classList.add('active');
+            };
+            reader.readAsDataURL(file);
+        }
 
         function updateWelcomeTime() {
             const now = new Date();
@@ -604,23 +654,15 @@
         });
 
         imageInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            handleImageSelect(e.target.files[0]);
+        });
 
-            if (!file.type.startsWith('image/')) {
-                alert('Please select an image file');
-                return;
-            }
+        cameraButton.addEventListener('click', () => {
+            cameraInput.click();
+        });
 
-            selectedImageMime = file.type || 'image/jpeg';
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                selectedImage = event.target.result.split(',')[1];
-                previewImg.src = event.target.result;
-                imageName.textContent = file.name;
-                imagePreviewContainer.classList.add('active');
-            };
-            reader.readAsDataURL(file);
+        cameraInput.addEventListener('change', (e) => {
+            handleImageSelect(e.target.files[0]);
         });
 
         removeImageButton.addEventListener('click', () => {
