@@ -15,12 +15,29 @@ MODEL = "openrouter/free"
 FALLBACK_MODEL = "openrouter/free"
 MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+FREE_MODELS = [
+    {"id": "openrouter/free", "name": "Free Model Router"},
+    {"id": "meta-llama/llama-3.1-8b-instruct:free", "name": "Llama 3.1 8B"},
+    {"id": "meta-llama/llama-3.2-3b-instruct:free", "name": "Llama 3.2 3B"},
+    {"id": "google/gemma-2-9b-it:free", "name": "Gemma 2 9B"},
+    {"id": "nvidia/llama-3.1-nemotron-8b-instruct:free", "name": "Nemotron 8B"},
+    {"id": "microsoft/phi-3-mini-128k-instruct:free", "name": "Phi-3 Mini"},
+    {"id": "huggingfaceh4/zephyr-7b-beta:free", "name": "Zephyr 7B"},
+    {"id": "mistralai/mistral-7b-instruct:free", "name": "Mistral 7B"}
+]
 
 def format_sse(data: str, event: str = None) -> str:
     msg = f"data: {data}\n\n"
     if event:
         msg = f"event: {event}\n{msg}"
     return msg
+
+@app.route('/api/models')
+def get_models():
+    return jsonify({
+        'models': FREE_MODELS,
+        'default': MODEL
+    })
 
 @app.route('/healthz')
 def healthz():
@@ -45,6 +62,7 @@ def chat():
 
     data = request.get_json()
     messages = data.get('messages', [])
+    selected_model = data.get('model', MODEL)
 
     for msg in messages:
         if isinstance(msg.get('content'), list):
@@ -76,7 +94,7 @@ def chat():
     }
 
     payload = {
-        "model": MODEL,
+        "model": selected_model,
         "messages": messages,
         "stream": True
     }
@@ -89,6 +107,14 @@ def chat():
             payload["model"] = model_name
             try:
                 with requests.post(OPENROUTER_URL, headers=headers, json=payload, stream=True, timeout=60) as resp:
+                    usage = None
+                    if resp.status_code == 200:
+                        usage = {
+                            'prompt_tokens': resp.headers.get('x-usage-prompt-tokens'),
+                            'completion_tokens': resp.headers.get('x-usage-completion-tokens'),
+                            'total_tokens': resp.headers.get('x-usage-total-tokens')
+                        }
+                    
                     if resp.status_code == 402 and not tried_fallback:
                         tried_fallback = True
                         yield format_sse(json.dumps({
@@ -130,6 +156,8 @@ def chat():
                             if line.startswith('data: '):
                                 line = line[6:]
                             if line.strip() == '[DONE]':
+                                if usage and any(v for v in usage.values()):
+                                    yield format_sse(json.dumps({"usage": usage}))
                                 yield format_sse(json.dumps({"done": True}))
                                 return
                             try:
@@ -154,7 +182,7 @@ def chat():
                     "error": f"An unexpected error occurred: {str(e)}"
                 }))
 
-        yield from try_model(MODEL)
+        yield from try_model(selected_model)
 
     return Response(stream_with_context(generate()), content_type='text/event-stream')
 

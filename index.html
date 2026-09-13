@@ -33,13 +33,15 @@
         }
 
         .chat-header {
-            padding: 16px 20px;
+            padding: 12px 20px;
             background-color: #2d2d30;
             border-bottom: 1px solid #3e3e42;
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-shrink: 0;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
         .chat-header h1 {
@@ -51,20 +53,39 @@
             gap: 8px;
         }
 
-        .header-actions {
+        .header-controls {
             display: flex;
             gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .model-select {
+            background-color: #3e3e42;
+            border: 1px solid #3e3e42;
+            color: #d4d4d4;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            outline: none;
+            min-width: 180px;
+        }
+
+        .model-select:focus {
+            border-color: #0e639c;
         }
 
         .icon-button {
             background: transparent;
             border: 1px solid #3e3e42;
             color: #d4d4d4;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
             transition: all 0.2s;
+            white-space: nowrap;
         }
 
         .icon-button:hover {
@@ -129,6 +150,15 @@
         }
 
         .message-time {
+            font-size: 10px;
+            opacity: 0.6;
+        }
+
+        .message-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 6px;
             font-size: 10px;
             opacity: 0.6;
         }
@@ -251,11 +281,11 @@
         }
 
         .chat-input-container {
-            padding: 16px 20px;
+            padding: 12px 20px;
             background-color: #2d2d30;
             border-top: 1px solid #3e3e42;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             align-items: flex-end;
             flex-shrink: 0;
         }
@@ -289,7 +319,7 @@
             color: #ffffff;
             border: none;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 10px 18px;
             font-size: 14px;
             cursor: pointer;
             transition: all 0.2s;
@@ -311,6 +341,36 @@
             background-color: #3e3e42;
             cursor: not-allowed;
             opacity: 0.6;
+        }
+
+        .voice-button {
+            background: transparent;
+            border: 1px solid #3e3e42;
+            color: #d4d4d4;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .voice-button:hover {
+            background-color: #3e3e42;
+            border-color: #0e639c;
+        }
+
+        .voice-button.recording {
+            background-color: #f48771;
+            border-color: #f48771;
+            color: #ffffff;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
 
         .image-preview-container {
@@ -402,12 +462,23 @@
             border-color: #0e639c;
         }
 
-        #imageInput {
+        #imageInput, #cameraInput {
             display: none;
         }
 
-        #cameraInput {
+        .usage-info {
+            padding: 8px 20px;
+            background-color: #2d2d30;
+            border-top: 1px solid #3e3e42;
+            font-size: 11px;
+            color: #858585;
             display: none;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        .usage-info.active {
+            display: flex;
         }
 
         ::-webkit-scrollbar {
@@ -441,6 +512,11 @@
             .chat-header h1 {
                 font-size: 16px;
             }
+
+            .header-controls {
+                width: 100%;
+                justify-content: flex-end;
+            }
         }
     </style>
 </head>
@@ -453,7 +529,13 @@
                 </svg>
                 HasanAI Chat
             </h1>
-            <div class="header-actions">
+            <div class="header-controls">
+                <select class="model-select" id="modelSelect" title="Select model">
+                    <option value="openrouter/free">Free Model Router</option>
+                </select>
+                <button class="icon-button" id="exportJson" title="Export as JSON">JSON</button>
+                <button class="icon-button" id="exportMarkdown" title="Export as Markdown">MD</button>
+                <button class="icon-button" id="shareChat" title="Share conversation">Share</button>
                 <button class="icon-button" id="clearChat" title="Clear chat">Clear</button>
             </div>
         </div>
@@ -500,6 +582,14 @@
                 </svg>
             </button>
             <input type="file" id="cameraInput" accept="image/jpeg,image/png,image/gif,image/webp" capture="environment">
+            <button class="voice-button" id="voiceButton" title="Voice input">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+            </button>
             <textarea
                 class="chat-input"
                 id="messageInput"
@@ -507,6 +597,9 @@
                 rows="1"
             ></textarea>
             <button class="send-button" id="sendButton">Send</button>
+        </div>
+        <div class="usage-info" id="usageInfo">
+            <span id="usageText"></span>
         </div>
     </div>
 
@@ -518,17 +611,44 @@
         const clearChatButton = document.getElementById('clearChat');
         const attachButton = document.getElementById('attachButton');
         const cameraButton = document.getElementById('cameraButton');
+        const voiceButton = document.getElementById('voiceButton');
         const imageInput = document.getElementById('imageInput');
         const cameraInput = document.getElementById('cameraInput');
         const imagePreviewContainer = document.getElementById('imagePreviewContainer');
         const previewImg = document.getElementById('previewImg');
         const imageName = document.getElementById('imageName');
         const removeImageButton = document.getElementById('removeImage');
+        const modelSelect = document.getElementById('modelSelect');
+        const exportJsonButton = document.getElementById('exportJson');
+        const exportMarkdownButton = document.getElementById('exportMarkdown');
+        const shareChatButton = document.getElementById('shareChat');
+        const usageInfo = document.getElementById('usageInfo');
+        const usageText = document.getElementById('usageText');
 
         let conversationHistory = [];
         let isStreaming = false;
         let selectedImage = null;
         let selectedImageMime = 'image/jpeg';
+        let recognition = null;
+        let isRecording = false;
+
+        const FREE_MODELS = [
+            { id: 'openrouter/free', name: 'Free Model Router' },
+            { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama 3.1 8B' },
+            { id: 'meta-llama/llama-3.2-3b-instruct:free', name: 'Llama 3.2 3B' },
+            { id: 'google/gemma-2-9b-it:free', name: 'Gemma 2 9B' },
+            { id: 'nvidia/llama-3.1-nemotron-8b-instruct:free', name: 'Nemotron 8B' },
+            { id: 'microsoft/phi-3-mini-128k-instruct:free', name: 'Phi-3 Mini' },
+            { id: 'huggingfaceh4/zephyr-7b-beta:free', name: 'Zephyr 7B' },
+            { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B' }
+        ];
+
+        FREE_MODELS.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            modelSelect.appendChild(option);
+        });
 
         function handleImageSelect(file) {
             if (!file) return;
@@ -620,7 +740,7 @@
             });
         }
 
-        function appendMessage(role, content, time = null, imageBase64 = null, imageMime = null) {
+        function appendMessage(role, content, time = null, imageBase64 = null, imageMime = null, meta = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role}`;
             
@@ -636,18 +756,172 @@
                 contentHtml += formatMessage(content);
             }
             
+            let metaHtml = '';
+            if (meta) {
+                metaHtml = `<div class="message-meta"><span>${escapeHtml(meta)}</span></div>`;
+            }
+            
             messageDiv.innerHTML = `
                 <div class="message-header">
                     <span>${roleName}</span>
                     <span class="message-time">${currentTime}</span>
                 </div>
                 <div class="message-content">${contentHtml}</div>
+                ${metaHtml}
             `;
             
             chatMessages.appendChild(messageDiv);
             scrollToBottom();
             return messageDiv;
         }
+
+        function initSpeechRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                voiceButton.style.display = 'none';
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                isRecording = true;
+                voiceButton.classList.add('recording');
+                messageInput.placeholder = 'Listening...';
+            };
+
+            recognition.onend = () => {
+                isRecording = false;
+                voiceButton.classList.remove('recording');
+                messageInput.placeholder = 'Type your message here... (Shift+Enter for new line)';
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                messageInput.value = transcript;
+                autoResizeTextarea();
+                messageInput.focus();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                isRecording = false;
+                voiceButton.classList.remove('recording');
+                messageInput.placeholder = 'Type your message here... (Shift+Enter for new line)';
+                if (event.error === 'not-allowed') {
+                    alert('Microphone access denied. Please allow microphone access to use voice input.');
+                }
+            };
+        }
+
+        function toggleRecording() {
+            if (!recognition) return;
+
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
+
+        function exportConversation(format) {
+            if (conversationHistory.length === 0) {
+                alert('No conversation to export');
+                return;
+            }
+
+            let content, filename, type;
+
+            if (format === 'json') {
+                content = JSON.stringify(conversationHistory, null, 2);
+                filename = 'hasanai-chat.json';
+                type = 'application/json';
+            } else {
+                content = '# HasanAI Chat Export\n\n';
+                content += `Exported: ${new Date().toLocaleString()}\n\n`;
+                conversationHistory.forEach((msg, index) => {
+                    const role = msg.role === 'user' ? 'You' : 'HasanAI';
+                    content += `## ${role} (${index + 1})\n\n`;
+                    if (typeof msg.content === 'string') {
+                        content += `${msg.content}\n\n`;
+                    } else {
+                        msg.content.forEach(item => {
+                            if (item.type === 'text') {
+                                content += `${item.text}\n\n`;
+                            } else if (item.type === 'image_url') {
+                                content += '[Image]\n\n';
+                            }
+                        });
+                    }
+                });
+                filename = 'hasanai-chat.md';
+                type = 'text/markdown';
+            }
+
+            const blob = new Blob([content], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function shareConversation() {
+            if (conversationHistory.length === 0) {
+                alert('No conversation to share');
+                return;
+            }
+
+            try {
+                const compressed = btoa(encodeURIComponent(JSON.stringify(conversationHistory)));
+                const shareUrl = `${window.location.origin}${window.location.pathname}#chat=${compressed}`;
+                
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    alert('Share link copied to clipboard!');
+                }).catch(() => {
+                    prompt('Copy this link:', shareUrl);
+                });
+            } catch (e) {
+                alert('Failed to create share link');
+            }
+        }
+
+        function loadSharedConversation() {
+            const hash = window.location.hash;
+            if (hash.startsWith('#chat=')) {
+                try {
+                    const compressed = hash.substring(6);
+                    const json = decodeURIComponent(atob(compressed));
+                    conversationHistory = JSON.parse(json);
+                    
+                    chatMessages.innerHTML = '';
+                    conversationHistory.forEach(msg => {
+                        if (msg.role === 'user') {
+                            const content = typeof msg.content === 'string' ? msg.content : '';
+                            const imageData = typeof msg.content === 'object' && msg.content.find ? msg.content.find(c => c.type === 'image_url') : null;
+                            const imageBase64 = imageData ? imageData.image_url.url.replace(/^data:[^;]+;base64,/, '') : null;
+                            const imageMime = imageData ? imageData.image_url.url.match(/^data:([^;]+);/)?.[1] : null;
+                            appendMessage('user', content, null, imageBase64, imageMime);
+                        } else {
+                            const content = typeof msg.content === 'string' ? msg.content : '';
+                            appendMessage('assistant', content);
+                        }
+                    });
+                    
+                    window.location.hash = '';
+                    scrollToBottom();
+                } catch (e) {
+                    console.error('Failed to load shared conversation:', e);
+                }
+            }
+        }
+
+        initSpeechRecognition();
+        loadSharedConversation();
 
         attachButton.addEventListener('click', () => {
             imageInput.click();
@@ -664,6 +938,8 @@
         cameraInput.addEventListener('change', (e) => {
             handleImageSelect(e.target.files[0]);
         });
+
+        voiceButton.addEventListener('click', toggleRecording);
 
         removeImageButton.addEventListener('click', () => {
             selectedImage = null;
@@ -716,13 +992,18 @@
             imageInput.value = '';
             imagePreviewContainer.classList.remove('active');
 
+            let usageData = null;
+
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ messages: conversationHistory })
+                    body: JSON.stringify({ 
+                        messages: conversationHistory,
+                        model: modelSelect.value
+                    })
                 });
 
                 if (!response.ok) {
@@ -754,6 +1035,9 @@
                                     if (parsed.error) {
                                         contentDiv.innerHTML = `<span style="color: #f48771;">Error: ${escapeHtml(parsed.error)}</span>`;
                                     }
+                                    if (parsed.usage) {
+                                        usageData = parsed.usage;
+                                    }
                                 } catch (e) {
                                     // Ignore parse errors for incomplete chunks
                                 }
@@ -763,6 +1047,14 @@
                 }
 
                 conversationHistory.push({ role: 'assistant', content: fullContent });
+
+                if (usageData) {
+                    const promptTokens = usageData.prompt_tokens || 0;
+                    const completionTokens = usageData.completion_tokens || 0;
+                    const totalTokens = usageData.total_tokens || promptTokens + completionTokens;
+                    usageText.textContent = `Tokens: ${promptTokens} prompt + ${completionTokens} completion = ${totalTokens} total`;
+                    usageInfo.classList.add('active');
+                }
             } catch (error) {
                 contentDiv.innerHTML = `<span style="color: #f48771;">Error: ${escapeHtml(error.message)}</span>`;
             } finally {
@@ -785,11 +1077,15 @@
                         Chat cleared. How can I help you today?
                     </div>
                 `;
+                usageInfo.classList.remove('active');
                 messageInput.focus();
             }
         }
 
         clearChatButton.addEventListener('click', clearChat);
+        exportJsonButton.addEventListener('click', () => exportConversation('json'));
+        exportMarkdownButton.addEventListener('click', () => exportConversation('markdown'));
+        shareChatButton.addEventListener('click', shareConversation);
 
         sendButton.addEventListener('click', sendMessage);
 
