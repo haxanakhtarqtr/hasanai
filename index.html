@@ -735,6 +735,18 @@
                         }
                         modelSelect.appendChild(option);
                     });
+                    
+                    const geminiOptions = [
+                        { id: 'google/gemini-2.5-flash:free', name: 'Gemini 2.5 Flash (Google)' },
+                        { id: 'google/gemini-1.5-flash:free', name: 'Gemini 1.5 Flash (Google)' }
+                    ];
+                    
+                    geminiOptions.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.textContent = model.name;
+                        modelSelect.appendChild(option);
+                    });
                 }
             } catch (error) {
                 console.error('Failed to load models:', error);
@@ -1265,7 +1277,10 @@
             let usageData = null;
 
             try {
-                const response = await fetch('/api/chat', {
+                const isGoogleModel = modelSelect.value.startsWith('google/');
+                const endpoint = isGoogleModel ? '/api/chat/google' : '/api/chat';
+                
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
