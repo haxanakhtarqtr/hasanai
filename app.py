@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from flask import Flask, request, Response, stream_with_context
+from flask import Flask, request, Response, stream_with_context, send_from_directory
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -16,6 +16,10 @@ def format_sse(data: str, event: str = None) -> str:
     if event:
         msg = f"event: {event}\n{msg}"
     return msg
+
+@app.route('/')
+def index():
+    return send_from_directory('.', 'index.html')
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
