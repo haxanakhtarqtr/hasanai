@@ -1046,9 +1046,26 @@
                         <option value="light">Light</option>
                     </select>
                     <select class="model-select" id="modelSelect" title="Select model">
-                        <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
-                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                        <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                        <optgroup label="Google Gemini">
+                            <option value="gemini-3.6-flash" selected>Gemini 3.6 Flash</option>
+                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                        </optgroup>
+                        <optgroup label="Groq">
+                            <option value="groq/llama-3.3-70b-versatile">Llama 3.3 70B</option>
+                            <option value="groq/llama-3.1-8b-instant">Llama 3.1 8B</option>
+                            <option value="groq/mixtral-8x7b-32768">Mixtral 8x7B</option>
+                            <option value="groq/gemma2-9b-it">Gemma 2 9B</option>
+                        </optgroup>
+                        <optgroup label="OpenRouter">
+                            <option value="openrouter/free">Free Model Router</option>
+                            <option value="openrouter/auto">Auto Router</option>
+                        </optgroup>
+                        <optgroup label="Mistral">
+                            <option value="mistral/mistral-small-latest">Mistral Small</option>
+                            <option value="mistral/mistral-large-latest">Mistral Large</option>
+                            <option value="mistral/ministral-8b-latest">Ministral 8B</option>
+                        </optgroup>
                     </select>
                     <select class="model-select" id="voiceSelect" title="Select voice">
                         <option value="">Loading voices...</option>
