@@ -31,10 +31,10 @@ MODELS = [
     {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "provider": "google"},
     {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "google"},
     # Groq
-    {"id": "groq/llama-3.3-70b-versatile", "name": "Llama 3.3 70B (Groq)", "provider": "groq"},
     {"id": "groq/llama-3.1-8b-instant", "name": "Llama 3.1 8B (Groq)", "provider": "groq"},
-    {"id": "groq/mixtral-8x7b-32768", "name": "Mixtral 8x7B (Groq)", "provider": "groq"},
+    {"id": "groq/llama-3.2-3b-preview", "name": "Llama 3.2 3B (Groq)", "provider": "groq"},
     {"id": "groq/gemma2-9b-it", "name": "Gemma 2 9B (Groq)", "provider": "groq"},
+    {"id": "groq/mixtral-8x7b-32768", "name": "Mixtral 8x7B (Groq)", "provider": "groq"},
     # OpenRouter
     {"id": "openrouter/free", "name": "Free Model Router (OpenRouter)", "provider": "openrouter"},
     {"id": "openrouter/auto", "name": "Auto Router (OpenRouter)", "provider": "openrouter"},
@@ -346,33 +346,35 @@ def chat():
                     has_image = True
                     break
 
-    if provider == 'google' and not GOOGLE_API_KEY:
-        return Response(
-            format_sse(json.dumps({"error": "GOOGLE_API_KEY not configured"})),
-            status=500,
-            content_type='text/event-stream'
-        )
+    # Check if selected provider is available
+    provider_available = {
+        'google': bool(GOOGLE_API_KEY),
+        'groq': bool(GROQ_API_KEY),
+        'openrouter': bool(OPENROUTER_API_KEY),
+        'mistral': bool(MISTRAL_API_KEY),
+    }
 
-    if provider == 'groq' and not GROQ_API_KEY:
-        return Response(
-            format_sse(json.dumps({"error": "GROQ_API_KEY not configured"})),
-            status=500,
-            content_type='text/event-stream'
-        )
-
-    if provider == 'openrouter' and not OPENROUTER_API_KEY:
-        return Response(
-            format_sse(json.dumps({"error": "OPENROUTER_API_KEY not configured"})),
-            status=500,
-            content_type='text/event-stream'
-        )
-
-    if provider == 'mistral' and not MISTRAL_API_KEY:
-        return Response(
-            format_sse(json.dumps({"error": "MISTRAL_API_KEY not configured"})),
-            status=500,
-            content_type='text/event-stream'
-        )
+    if not provider_available.get(provider, False):
+        # Try fallback providers
+        fallback_models = {
+            'google': 'gemini-3.6-flash',
+            'groq': 'groq/llama-3.1-8b-instant',
+            'openrouter': 'openrouter/free',
+            'mistral': 'mistral/mistral-small-latest',
+        }
+        
+        for fallback_provider in PROVIDER_FALLBACK_ORDER:
+            if provider_available.get(fallback_provider, False):
+                selected_model = fallback_models.get(fallback_provider, DEFAULT_MODEL)
+                provider = fallback_provider
+                yield format_sse(json.dumps({"error": f"Primary provider unavailable. Switching to {provider}..."}))
+                break
+        else:
+            return Response(
+                format_sse(json.dumps({"error": "No API providers configured. Please add at least one API key."})),
+                status=500,
+                content_type='text/event-stream'
+            )
 
     # Convert messages to provider format
     if provider == 'google':
