@@ -92,40 +92,43 @@ def chat():
         "stream": True
     }
 
-    try:
-        with requests.post(API_URL, headers=headers, json=payload, stream=True, timeout=60) as resp:
-            if resp.status_code != 200:
-                try:
-                    error_data = resp.json()
-                    error_msg = error_data.get('message') or error_data.get('error', {}).get('message') or resp.text
-                except Exception:
-                    error_msg = resp.text or f"HTTP {resp.status_code}"
-                yield format_sse(json.dumps({"error": f"Atria API Error: {error_msg}"}))
-                return
-
-            for line in resp.iter_lines():
-                if line:
-                    line = line.decode('utf-8')
-                    if line.startswith('data: '):
-                        line = line[6:]
-                    if line.strip() == '[DONE]':
-                        yield format_sse(json.dumps({"done": True}))
-                        return
+    def generate():
+        try:
+            with requests.post(API_URL, headers=headers, json=payload, stream=True, timeout=60) as resp:
+                if resp.status_code != 200:
                     try:
-                        chunk = json.loads(line)
-                        if 'choices' in chunk and len(chunk['choices']) > 0:
-                            delta = chunk['choices'][0].get('delta', {})
-                            content = delta.get('content', '')
-                            if content:
-                                yield format_sse(json.dumps({"content": content}))
-                    except json.JSONDecodeError:
-                        continue
-    except requests.exceptions.Timeout:
-        yield format_sse(json.dumps({"error": "Request timed out. Please try again."}))
-    except requests.exceptions.ConnectionError:
-        yield format_sse(json.dumps({"error": "Connection error. Please try again."}))
-    except Exception as e:
-        yield format_sse(json.dumps({"error": f"An error occurred: {str(e)}"}))
+                        error_data = resp.json()
+                        error_msg = error_data.get('message') or error_data.get('error', {}).get('message') or resp.text
+                    except Exception:
+                        error_msg = resp.text or f"HTTP {resp.status_code}"
+                    yield format_sse(json.dumps({"error": f"Atria API Error: {error_msg}"}))
+                    return
+
+                for line in resp.iter_lines():
+                    if line:
+                        line = line.decode('utf-8')
+                        if line.startswith('data: '):
+                            line = line[6:]
+                        if line.strip() == '[DONE]':
+                            yield format_sse(json.dumps({"done": True}))
+                            return
+                        try:
+                            chunk = json.loads(line)
+                            if 'choices' in chunk and len(chunk['choices']) > 0:
+                                delta = chunk['choices'][0].get('delta', {})
+                                content = delta.get('content', '')
+                                if content:
+                                    yield format_sse(json.dumps({"content": content}))
+                        except json.JSONDecodeError:
+                            continue
+        except requests.exceptions.Timeout:
+            yield format_sse(json.dumps({"error": "Request timed out. Please try again."}))
+        except requests.exceptions.ConnectionError:
+            yield format_sse(json.dumps({"error": "Connection error. Please try again."}))
+        except Exception as e:
+            yield format_sse(json.dumps({"error": f"An error occurred: {str(e)}"}))
+
+    return Response(stream_with_context(generate()), content_type='text/event-stream')
 
 
 @app.route('/api/chat-debug', methods=['POST'])
