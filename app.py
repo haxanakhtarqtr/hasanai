@@ -64,6 +64,12 @@ def chat():
         if isinstance(msg.get('content'), list):
             for item in msg['content']:
                 if item.get('type') == 'image_url':
+                    if selected_model == 'Atria-Dawn-Preview':
+                        return Response(
+                            format_sse(json.dumps({"error": "Atria-Dawn-Preview does not support image input. Please use a vision-capable model or remove the image."})),
+                            status=400,
+                            content_type='text/event-stream'
+                        )
                     image_url = item.get('image_url', {}).get('url', '')
                     if image_url.startswith('data:'):
                         try:

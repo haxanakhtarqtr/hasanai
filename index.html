@@ -1844,6 +1844,18 @@
             }
         });
 
+        function updateImageUploadState() {
+            const isVisionModel = modelSelect.value !== 'Atria-Dawn-Preview';
+            attachButton.disabled = !isVisionModel;
+            cameraButton.disabled = !isVisionModel;
+            attachButton.style.opacity = isVisionModel ? '1' : '0.5';
+            cameraButton.style.opacity = isVisionModel ? '1' : '0.5';
+            attachButton.title = isVisionModel ? 'Attach image' : 'Image upload not supported by this model';
+            cameraButton.title = isVisionModel ? 'Take photo' : 'Image upload not supported by this model';
+        }
+
+        modelSelect.addEventListener('change', updateImageUploadState);
+
         function initSpeechSynthesis() {
             if (!('speechSynthesis' in window)) {
                 console.warn('Speech synthesis not supported');
@@ -2403,6 +2415,7 @@
         loadConversations();
         initTheme();
         loadSharedConversation();
+        updateImageUploadState();
 
         if (conversations.length === 0) {
             const conv = createNewConversation();
