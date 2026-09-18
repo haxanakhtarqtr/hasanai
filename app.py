@@ -97,10 +97,10 @@ def chat():
             if resp.status_code != 200:
                 try:
                     error_data = resp.json()
-                    error_msg = error_data.get('error', {}).get('message', resp.text)
+                    error_msg = error_data.get('message') or error_data.get('error', {}).get('message') or resp.text
                 except Exception:
                     error_msg = resp.text or f"HTTP {resp.status_code}"
-                yield format_sse(json.dumps({"error": f"API Error: {error_msg}"}))
+                yield format_sse(json.dumps({"error": f"Atria API Error: {error_msg}"}))
                 return
 
             for line in resp.iter_lines():
@@ -126,6 +126,31 @@ def chat():
         yield format_sse(json.dumps({"error": "Connection error. Please try again."}))
     except Exception as e:
         yield format_sse(json.dumps({"error": f"An error occurred: {str(e)}"}))
+
+
+@app.route('/api/chat-debug', methods=['POST'])
+def chat_debug():
+    data = request.get_json()
+    messages = data.get('messages', [])
+    selected_model = data.get('model', DEFAULT_MODEL)
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": selected_model,
+        "messages": messages,
+        "stream": False
+    }
+    try:
+        resp = requests.post(API_URL, headers=headers, json=payload, timeout=60)
+        return jsonify({
+            'status_code': resp.status_code,
+            'headers': dict(resp.headers),
+            'text': resp.text[:1000]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
