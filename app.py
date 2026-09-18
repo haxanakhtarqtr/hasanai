@@ -60,33 +60,40 @@ def chat():
     messages = data.get('messages', [])
     selected_model = data.get('model', DEFAULT_MODEL)
 
-    for msg in messages:
-        if isinstance(msg.get('content'), list):
-            for item in msg['content']:
-                if item.get('type') == 'image_url':
-                    if selected_model == 'Atria-Dawn-Preview':
-                        return Response(
-                            format_sse(json.dumps({"error": "Atria-Dawn-Preview does not support image input. Please use a vision-capable model or remove the image."})),
-                            status=400,
-                            content_type='text/event-stream'
-                        )
-                    image_url = item.get('image_url', {}).get('url', '')
-                    if image_url.startswith('data:'):
-                        try:
-                            _, base64_data = image_url.split(',', 1)
-                            image_bytes = base64.b64decode(base64_data)
-                            if len(image_bytes) > MAX_IMAGE_SIZE_BYTES:
-                                return Response(
-                                    format_sse(json.dumps({"error": f"Image too large. Maximum size is {MAX_IMAGE_SIZE_BYTES // 1024 // 1024}MB"})),
-                                    status=400,
-                                    content_type='text/event-stream'
-                                )
-                        except Exception as e:
+    try:
+        for msg in messages:
+            if isinstance(msg.get('content'), list):
+                for item in msg['content']:
+                    if item.get('type') == 'image_url':
+                        if selected_model == 'Atria-Dawn-Preview':
                             return Response(
-                                format_sse(json.dumps({"error": f"Invalid image data: {str(e)}"})),
+                                format_sse(json.dumps({"error": "Atria-Dawn-Preview does not support image input. Please use a vision-capable model or remove the image."})),
                                 status=400,
                                 content_type='text/event-stream'
                             )
+                        image_url = item.get('image_url', {}).get('url', '')
+                        if image_url.startswith('data:'):
+                            try:
+                                _, base64_data = image_url.split(',', 1)
+                                image_bytes = base64.b64decode(base64_data)
+                                if len(image_bytes) > MAX_IMAGE_SIZE_BYTES:
+                                    return Response(
+                                        format_sse(json.dumps({"error": f"Image too large. Maximum size is {MAX_IMAGE_SIZE_BYTES // 1024 // 1024}MB"})),
+                                        status=400,
+                                        content_type='text/event-stream'
+                                    )
+                            except Exception as e:
+                                return Response(
+                                    format_sse(json.dumps({"error": f"Invalid image data: {str(e)}"})),
+                                    status=400,
+                                    content_type='text/event-stream'
+                                )
+    except Exception as e:
+        return Response(
+            format_sse(json.dumps({"error": f"Failed to process request: {str(e)}"})),
+            status=400,
+            content_type='text/event-stream'
+        )
 
     headers = {
         "Authorization": f"Bearer {API_KEY}",
@@ -134,7 +141,14 @@ def chat():
         except Exception as e:
             yield format_sse(json.dumps({"error": f"An error occurred: {str(e)}"}))
 
-    return Response(stream_with_context(generate()), content_type='text/event-stream')
+    try:
+        return Response(stream_with_context(generate()), content_type='text/event-stream')
+    except Exception as e:
+        return Response(
+            format_sse(json.dumps({"error": f"Failed to start streaming: {str(e)}"})),
+            status=200,
+            content_type='text/event-stream'
+        )
 
 
 @app.route('/api/chat-debug', methods=['POST'])
