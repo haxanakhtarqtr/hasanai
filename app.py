@@ -9,9 +9,9 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-API_KEY = os.environ.get('API_KEY')
-API_URL = os.environ.get('API_URL')
-DEFAULT_MODEL = os.environ.get('DEFAULT_MODEL', 'default-model')
+API_KEY = os.environ.get('API_KEY', 'atr_VsYOuvA90HXbeSqMsh_PKR2OWvVuJebe')
+API_URL = os.environ.get('API_URL', 'https://api.atria-asi.ai/v1/chat/completions')
+DEFAULT_MODEL = os.environ.get('DEFAULT_MODEL', 'Atria-Dawn-Preview')
 MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
 
@@ -26,7 +26,7 @@ def format_sse(data: str, event: str = None) -> str:
 @app.route('/api/models')
 def get_models():
     return jsonify({
-        'models': [{"id": DEFAULT_MODEL, "name": "Current Provider"}],
+        'models': [{"id": DEFAULT_MODEL, "name": "Atria Dawn Preview"}],
         'default': DEFAULT_MODEL
     })
 
@@ -36,6 +36,7 @@ def healthz():
     return jsonify({
         'status': 'ok',
         'model': DEFAULT_MODEL,
+        'provider': 'atria',
         'configured': bool(API_KEY and API_URL),
         'timestamp': int(time.time())
     })
