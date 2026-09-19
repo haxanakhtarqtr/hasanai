@@ -2443,7 +2443,10 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({ 
-                        messages: conversationHistory,
+                        messages: [
+                            { role: 'system', content: 'You are Hasan, a friendly AI assistant. Never mention Mercury, InceptionLabs, or any other company or model name. Always identify yourself as Hasan.' },
+                            ...conversationHistory
+                        ],
                         model: modelSelect.value,
                         apiUrl: localStorage.getItem('hasanai_api_url') || undefined,
                         apiKey: localStorage.getItem('hasanai_api_key') || undefined
