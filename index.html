@@ -22,6 +22,7 @@
             --user-bubble: #0e639c;
             --assistant-bubble: #3e3e42;
             --shadow: rgba(0, 0, 0, 0.3);
+            --chat-font-size: 15px;
         }
 
         [data-theme="light"] {
@@ -38,6 +39,22 @@
             --user-bubble: #0e639c;
             --assistant-bubble: #e8e8e8;
             --shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        .font-size-small {
+            --chat-font-size: 13px;
+        }
+
+        .font-size-medium {
+            --chat-font-size: 15px;
+        }
+
+        .font-size-large {
+            --chat-font-size: 17px;
+        }
+
+        .font-size-xlarge {
+            --chat-font-size: 19px;
         }
 
         * {
@@ -339,6 +356,12 @@
             border-color: var(--accent);
         }
 
+        #fontSizeButton {
+            font-weight: bold;
+            min-width: 32px;
+            text-align: center;
+        }
+
         .chat-messages {
             flex: 1;
             overflow-y: auto;
@@ -347,6 +370,7 @@
             flex-direction: column;
             gap: 16px;
             scroll-behavior: smooth;
+            font-size: var(--chat-font-size);
         }
 
         .message {
@@ -1440,6 +1464,7 @@
                     <button class="icon-button" id="exportMarkdown" title="Export as Markdown">MD</button>
                     <button class="icon-button" id="shareChat" title="Share conversation">Share</button>
                     <button class="icon-button" id="clearChat" title="Clear chat">Clear</button>
+                    <button class="icon-button" id="fontSizeButton" title="Font size">A</button>
                     <button class="voice-output-button" id="voiceOutputToggle" title="Toggle auto-read">🔊 Auto-Read</button>
                 </div>
             </div>
@@ -1543,6 +1568,15 @@
                     <span>Accent Color</span>
                     <input type="color" id="settingAccent" value="#0e639c">
                 </label>
+                <label>
+                    <span>Font Size</span>
+                    <select id="settingFontSize">
+                        <option value="small">Small</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="large">Large</option>
+                        <option value="xlarge">Extra Large</option>
+                    </select>
+                </label>
                 <div class="settings-actions">
                     <button class="new-chat-button" id="saveSettings">Save</button>
                     <button class="icon-button" id="resetSettings">Reset</button>
@@ -1576,6 +1610,7 @@
         const exportJsonButton = document.getElementById('exportJson');
         const exportMarkdownButton = document.getElementById('exportMarkdown');
         const shareChatButton = document.getElementById('shareChat');
+        const fontSizeButton = document.getElementById('fontSizeButton');
         const usageInfo = document.getElementById('usageInfo');
         const usageText = document.getElementById('usageText');
         const sidebar = document.getElementById('sidebar');
@@ -1602,6 +1637,7 @@
         const settingApiKey = document.getElementById('settingApiKey');
         const settingModel = document.getElementById('settingModel');
         const settingAccent = document.getElementById('settingAccent');
+        const settingFontSize = document.getElementById('settingFontSize');
 
         let conversations = [];
         let currentConversationId = null;
@@ -2636,6 +2672,11 @@
             localStorage.setItem('hasanai_theme', theme);
         }
 
+        function applyFontSize(size) {
+            document.body.classList.remove('font-size-small', 'font-size-medium', 'font-size-large', 'font-size-xlarge');
+            document.body.classList.add(`font-size-${size}`);
+        }
+
         function initTheme() {
             const savedTheme = localStorage.getItem('hasanai_theme') || 'system';
             themeSelect.value = savedTheme;
@@ -2646,6 +2687,11 @@
                 document.documentElement.style.setProperty('--accent', savedAccent);
                 const themeColor = document.querySelector('meta[name="theme-color"]');
                 if (themeColor) themeColor.setAttribute('content', savedAccent);
+            }
+
+            const savedFontSize = localStorage.getItem('hasanai_font_size');
+            if (savedFontSize) {
+                applyFontSize(savedFontSize);
             }
         }
 
@@ -2703,6 +2749,17 @@
         exportJsonButton.addEventListener('click', () => exportConversation('json'));
         exportMarkdownButton.addEventListener('click', () => exportConversation('markdown'));
         shareChatButton.addEventListener('click', shareConversation);
+
+        const fontSizes = ['small', 'medium', 'large', 'xlarge'];
+        let currentFontSizeIndex = fontSizes.indexOf(localStorage.getItem('hasanai_font_size') || 'medium');
+        if (currentFontSizeIndex < 0) currentFontSizeIndex = 1;
+
+        fontSizeButton.addEventListener('click', () => {
+            currentFontSizeIndex = (currentFontSizeIndex + 1) % fontSizes.length;
+            const size = fontSizes[currentFontSizeIndex];
+            applyFontSize(size);
+            localStorage.setItem('hasanai_font_size', size);
+        });
 
         const exportPdfButton = document.createElement('button');
         exportPdfButton.className = 'icon-button';
@@ -2796,6 +2853,7 @@
             settingApiKey.value = localStorage.getItem('hasanai_api_key') || '';
             settingModel.value = localStorage.getItem('hasanai_model') || 'mercury-2.5';
             settingAccent.value = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0e639c';
+            settingFontSize.value = localStorage.getItem('hasanai_font_size') || 'medium';
             settingsModal.classList.add('active');
         });
 
@@ -2808,6 +2866,7 @@
             const apiKey = settingApiKey.value.trim();
             const model = settingModel.value.trim();
             const accent = settingAccent.value.trim();
+            const fontSize = settingFontSize.value;
 
             if (apiUrl) localStorage.setItem('hasanai_api_url', apiUrl);
             if (apiKey) localStorage.setItem('hasanai_api_key', apiKey);
@@ -2820,6 +2879,11 @@
                 if (themeColor) themeColor.setAttribute('content', accent);
             }
 
+            if (fontSize) {
+                localStorage.setItem('hasanai_font_size', fontSize);
+                applyFontSize(fontSize);
+            }
+
             settingsModal.classList.remove('active');
             alert('Settings saved. Some changes may require a page refresh.');
         });
@@ -2830,6 +2894,7 @@
                 localStorage.removeItem('hasanai_api_key');
                 localStorage.removeItem('hasanai_model');
                 localStorage.removeItem('hasanai_accent');
+                localStorage.removeItem('hasanai_font_size');
                 location.reload();
             }
         });
