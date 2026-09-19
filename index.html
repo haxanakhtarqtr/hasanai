@@ -2370,14 +2370,16 @@
             imagePreviewContainer.classList.remove('active');
 
             let finalMessage = message;
+            let sendImageBase64 = imageBase64;
             if (imageBase64) {
                 const extractedText = await runOCR(imageBase64);
                 if (extractedText) {
                     finalMessage = (message ? message + '\n\n' : '') + `Image text:\n${extractedText}`;
+                    sendImageBase64 = null;
                 }
             }
 
-            await sendMessageToAPI(finalMessage, imageBase64, imageMime);
+            await sendMessageToAPI(finalMessage, sendImageBase64, imageMime);
         }
 
         function renderMessages() {

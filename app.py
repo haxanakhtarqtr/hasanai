@@ -89,13 +89,28 @@ def chat():
             content_type='text/event-stream'
         )
 
+    def to_text_messages(msgs):
+        api_messages = []
+        for msg in msgs:
+            content = msg.get('content')
+            if isinstance(content, list):
+                text_parts = []
+                for item in content:
+                    if item.get('type') == 'text':
+                        text_parts.append(item.get('text', ''))
+                text = ' '.join(text_parts).strip()
+                api_messages.append({'role': msg.get('role', 'user'), 'content': text})
+            else:
+                api_messages.append(msg)
+        return api_messages
+
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
     }
     payload = {
         "model": selected_model,
-        "messages": messages,
+        "messages": to_text_messages(messages),
         "stream": True
     }
 
@@ -156,7 +171,7 @@ def chat_debug():
     }
     payload = {
         "model": selected_model,
-        "messages": messages,
+        "messages": to_text_messages(messages),
         "stream": False
     }
     try:
