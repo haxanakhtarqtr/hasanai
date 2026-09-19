@@ -356,10 +356,39 @@
             border-color: var(--accent);
         }
 
+        .icon-button:active {
+            transform: scale(0.96);
+            opacity: 0.8;
+        }
+
         #fontSizeButton {
             font-weight: bold;
             min-width: 32px;
             text-align: center;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: auto;
+        }
+
+        @media (max-width: 768px) {
+            #fontSizeButton {
+                min-width: 44px;
+                min-height: 44px;
+                padding: 12px 14px;
+                font-size: 15px;
+                touch-action: manipulation;
+                user-select: none;
+                -webkit-user-select: none;
+                pointer-events: auto;
+                position: relative;
+                z-index: 1;
+            }
+
+            #fontSizeButton:active {
+                opacity: 0.7;
+                transform: scale(0.96);
+            }
         }
 
         .chat-messages {
