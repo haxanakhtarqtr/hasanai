@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HasanAI - Chat</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0e639c">
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         :root {
@@ -813,6 +815,28 @@
             color: var(--error);
         }
 
+        .ocr-text {
+            font-size: 10px;
+            color: var(--text-primary);
+            margin-top: 2px;
+            display: none;
+            max-height: 60px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+            padding: 4px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            word-break: break-word;
+        }
+
+        .ocr-text.active {
+            display: block;
+        }
+
+        .typing-indicator.sending {
+            display: flex;
+        }
+
         .attach-button {
             background: transparent;
             border: 1px solid var(--border);
@@ -1167,6 +1191,50 @@
             }
         }
 
+        @media print {
+            .sidebar,
+            .sidebar-toggle,
+            .chat-header,
+            .chat-input-container,
+            .image-preview-container,
+            .input-info,
+            .usage-info,
+            .typing-indicator,
+            .message-actions,
+            .copy-button,
+            button,
+            .icon-button,
+            .voice-button,
+            .attach-button,
+            .camera-button,
+            .send-button,
+            .stop-button,
+            .voice-output-button {
+                display: none !important;
+            }
+            body,
+            .app-container,
+            .main-content,
+            .chat-messages {
+                background: #fff !important;
+                color: #000 !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+            .message {
+                background: none !important;
+                color: #000 !important;
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+                max-width: 100% !important;
+            }
+            .message pre {
+                background: #f5f5f5 !important;
+                color: #000 !important;
+                border: 1px solid #ccc !important;
+            }
+        }
+
         .edit-input {
             width: 100%;
             background-color: var(--bg-primary);
@@ -1256,6 +1324,55 @@
             border-color: var(--accent);
             background-color: var(--bg-quaternary);
         }
+
+        .settings-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .settings-body label {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .settings-body input[type="text"],
+        .settings-body input[type="password"] {
+            width: 100%;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .settings-body input[type="text"]:focus,
+        .settings-body input[type="password"]:focus {
+            border-color: var(--accent);
+        }
+
+        .settings-body input[type="color"] {
+            width: 100%;
+            height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            cursor: pointer;
+            padding: 2px;
+        }
+
+        .settings-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -1344,6 +1461,7 @@
                     <div id="imageName">image.jpg</div>
                     <div style="font-size: 10px; margin-top: 2px;">Ready to send</div>
                     <div class="ocr-status" id="ocrStatus"></div>
+                    <div class="ocr-text" id="ocrText"></div>
                 </div>
             </div>
             <div class="chat-input-container">
@@ -1402,6 +1520,37 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button class="modal-close" id="closeSettingsModal">&times;</button>
+            </div>
+            <div class="settings-body">
+                <label>
+                    <span>API Endpoint</span>
+                    <input type="text" id="settingApiUrl" placeholder="https://api.example.com/v1/chat/completions">
+                </label>
+                <label>
+                    <span>API Key</span>
+                    <input type="password" id="settingApiKey" placeholder="sk-...">
+                </label>
+                <label>
+                    <span>Default Model</span>
+                    <input type="text" id="settingModel" placeholder="mercury-2.5">
+                </label>
+                <label>
+                    <span>Accent Color</span>
+                    <input type="color" id="settingAccent" value="#0e639c">
+                </label>
+                <div class="settings-actions">
+                    <button class="new-chat-button" id="saveSettings">Save</button>
+                    <button class="icon-button" id="resetSettings">Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const chatMessages = document.getElementById('chatMessages');
         const messageInput = document.getElementById('messageInput');
@@ -1421,6 +1570,7 @@
         const removeImageButton = document.getElementById('removeImage');
         const modelSelect = document.getElementById('modelSelect');
         const ocrStatus = document.getElementById('ocrStatus');
+        const ocrText = document.getElementById('ocrText');
         const voiceSelect = document.getElementById('voiceSelect');
         const speedSelect = document.getElementById('speedSelect');
         const exportJsonButton = document.getElementById('exportJson');
@@ -1444,6 +1594,14 @@
         const importArea = document.getElementById('importArea');
         const importFileInput = document.getElementById('importFileInput');
         const settingsButton = document.getElementById('settingsButton');
+        const settingsModal = document.getElementById('settingsModal');
+        const closeSettingsModal = document.getElementById('closeSettingsModal');
+        const saveSettingsButton = document.getElementById('saveSettings');
+        const resetSettingsButton = document.getElementById('resetSettings');
+        const settingApiUrl = document.getElementById('settingApiUrl');
+        const settingApiKey = document.getElementById('settingApiKey');
+        const settingModel = document.getElementById('settingModel');
+        const settingAccent = document.getElementById('settingAccent');
 
         let conversations = [];
         let currentConversationId = null;
@@ -1637,6 +1795,8 @@
             }
             try {
                 ocrStatus.classList.add('active');
+                ocrText.classList.remove('active');
+                ocrText.textContent = '';
                 ocrStatus.textContent = 'Reading image text...';
                 const result = await Tesseract.recognize(
                     `data:${selectedImageMime};base64,${imageBase64}`,
@@ -1655,6 +1815,10 @@
                 const text = (result && result.data && result.data.text || '').trim();
                 ocrStatus.textContent = text ? 'Text extracted' : 'No text found';
                 ocrStatus.classList.toggle('error', !text);
+                if (text) {
+                    ocrText.textContent = text;
+                    ocrText.classList.add('active');
+                }
                 return text;
             } catch (e) {
                 console.error('OCR failed:', e);
@@ -1967,6 +2131,9 @@
                 content = JSON.stringify(conv.messages, null, 2);
                 filename = `${conv.title.replace(/[^a-z0-9]/gi, '_')}.json`;
                 type = 'application/json';
+            } else if (format === 'pdf') {
+                window.print();
+                return;
             } else {
                 content = '# HasanAI Chat Export\n\n';
                 content += `Title: ${conv.title}\n`;
@@ -2277,7 +2444,9 @@
                     },
                     body: JSON.stringify({ 
                         messages: conversationHistory,
-                        model: modelSelect.value
+                        model: modelSelect.value,
+                        apiUrl: localStorage.getItem('hasanai_api_url') || undefined,
+                        apiKey: localStorage.getItem('hasanai_api_key') || undefined
                     }),
                     signal: abortController.signal
                 });
@@ -2468,6 +2637,13 @@
             const savedTheme = localStorage.getItem('hasanai_theme') || 'system';
             themeSelect.value = savedTheme;
             setTheme(savedTheme);
+
+            const savedAccent = localStorage.getItem('hasanai_accent');
+            if (savedAccent) {
+                document.documentElement.style.setProperty('--accent', savedAccent);
+                const themeColor = document.querySelector('meta[name="theme-color"]');
+                if (themeColor) themeColor.setAttribute('content', savedAccent);
+            }
         }
 
         function importConversations(file) {
@@ -2524,6 +2700,13 @@
         exportJsonButton.addEventListener('click', () => exportConversation('json'));
         exportMarkdownButton.addEventListener('click', () => exportConversation('markdown'));
         shareChatButton.addEventListener('click', shareConversation);
+
+        const exportPdfButton = document.createElement('button');
+        exportPdfButton.className = 'icon-button';
+        exportPdfButton.textContent = 'PDF';
+        exportPdfButton.title = 'Export as PDF';
+        exportPdfButton.addEventListener('click', () => exportConversation('pdf'));
+        document.querySelector('.header-controls').insertBefore(exportPdfButton, shareChatButton);
 
         sendButton.addEventListener('click', sendMessage);
         stopButton.addEventListener('click', stopGeneration);
@@ -2606,7 +2789,46 @@
         });
 
         settingsButton.addEventListener('click', () => {
-            themeSelect.focus();
+            settingApiUrl.value = localStorage.getItem('hasanai_api_url') || '';
+            settingApiKey.value = localStorage.getItem('hasanai_api_key') || '';
+            settingModel.value = localStorage.getItem('hasanai_model') || 'mercury-2.5';
+            settingAccent.value = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0e639c';
+            settingsModal.classList.add('active');
+        });
+
+        closeSettingsModal.addEventListener('click', () => {
+            settingsModal.classList.remove('active');
+        });
+
+        saveSettingsButton.addEventListener('click', () => {
+            const apiUrl = settingApiUrl.value.trim();
+            const apiKey = settingApiKey.value.trim();
+            const model = settingModel.value.trim();
+            const accent = settingAccent.value.trim();
+
+            if (apiUrl) localStorage.setItem('hasanai_api_url', apiUrl);
+            if (apiKey) localStorage.setItem('hasanai_api_key', apiKey);
+            if (model) localStorage.setItem('hasanai_model', model);
+
+            if (accent) {
+                document.documentElement.style.setProperty('--accent', accent);
+                localStorage.setItem('hasanai_accent', accent);
+                const themeColor = document.querySelector('meta[name="theme-color"]');
+                if (themeColor) themeColor.setAttribute('content', accent);
+            }
+
+            settingsModal.classList.remove('active');
+            alert('Settings saved. Some changes may require a page refresh.');
+        });
+
+        resetSettingsButton.addEventListener('click', () => {
+            if (confirm('Reset all settings to defaults?')) {
+                localStorage.removeItem('hasanai_api_url');
+                localStorage.removeItem('hasanai_api_key');
+                localStorage.removeItem('hasanai_model');
+                localStorage.removeItem('hasanai_accent');
+                location.reload();
+            }
         });
 
         document.addEventListener('keydown', (e) => {
@@ -2629,6 +2851,11 @@
                 if (importModal.classList.contains('active')) {
                     importModal.classList.remove('active');
                 }
+
+                if (settingsModal.classList.contains('active')) {
+                    settingsModal.classList.remove('active');
+                }
+
                 if (sidebar.classList.contains('open')) {
                     sidebar.classList.remove('open');
                     sidebarBackdrop.classList.remove('active');
@@ -2661,6 +2888,10 @@
             if (ocrStatus) {
                 ocrStatus.classList.remove('active', 'error');
                 ocrStatus.textContent = '';
+            }
+            if (ocrText) {
+                ocrText.classList.remove('active');
+                ocrText.textContent = '';
             }
             updateCharCount();
         });
@@ -2713,6 +2944,10 @@
 
         renderConversationsList();
         messageInput.focus();
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('SW registration failed:', err));
+        }
     </script>
 </body>
 </html>

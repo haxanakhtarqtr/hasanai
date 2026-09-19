@@ -47,6 +47,16 @@ def index():
     return send_from_directory('.', 'index.html')
 
 
+@app.route('/manifest.json')
+def manifest():
+    return send_from_directory('.', 'manifest.json')
+
+
+@app.route('/sw.js')
+def service_worker():
+    return send_from_directory('.', 'sw.js')
+
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     if not API_KEY or not API_URL:
@@ -59,6 +69,15 @@ def chat():
     data = request.get_json()
     messages = data.get('messages', [])
     selected_model = data.get('model', DEFAULT_MODEL)
+    api_url = data.get('apiUrl') or API_URL
+    api_key = data.get('apiKey') or API_KEY
+
+    if not api_key or not api_url:
+        return Response(
+            format_sse(json.dumps({"error": "Provider not configured yet."})),
+            status=500,
+            content_type='text/event-stream'
+        )
 
     try:
         for msg in messages:
@@ -105,7 +124,7 @@ def chat():
         return api_messages
 
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     payload = {
@@ -116,7 +135,7 @@ def chat():
 
     def generate():
         try:
-            with requests.post(API_URL, headers=headers, json=payload, stream=True, timeout=60) as resp:
+            with requests.post(api_url, headers=headers, json=payload, stream=True, timeout=60) as resp:
                 if resp.status_code != 200:
                     try:
                         error_data = resp.json()
@@ -165,8 +184,10 @@ def chat_debug():
     data = request.get_json()
     messages = data.get('messages', [])
     selected_model = data.get('model', DEFAULT_MODEL)
+    api_url = data.get('apiUrl') or API_URL
+    api_key = data.get('apiKey') or API_KEY
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     payload = {
@@ -175,7 +196,7 @@ def chat_debug():
         "stream": False
     }
     try:
-        resp = requests.post(API_URL, headers=headers, json=payload, timeout=60)
+        resp = requests.post(api_url, headers=headers, json=payload, timeout=60)
         return jsonify({
             'status_code': resp.status_code,
             'headers': dict(resp.headers),
