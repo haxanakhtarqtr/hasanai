@@ -2750,6 +2750,90 @@
             reader.readAsText(file);
         }
 
+const authModal = document.getElementById('authModal');
+const closeAuthModal = document.getElementById('closeAuthModal');
+const authTitle = document.getElementById('authTitle');
+const authEmail = document.getElementById('authEmail');
+const authPassword = document.getElementById('authPassword');
+const authSubmit = document.getElementById('authSubmit');
+const authToggle = document.getElementById('authToggle');
+let authToken = localStorage.getItem('hasanai_token');
+let currentUser = null;
+let isLoginMode = true;
+
+function setAuth(token, user) {
+  authToken = token;
+  currentUser = user;
+  if (token) localStorage.setItem('hasanai_token', token);
+  else localStorage.removeItem('hasanai_token');
+  updateAuthUI();
+}
+
+function updateAuthUI() {
+  const loginBtn = document.getElementById('loginButton');
+  if (currentUser) {
+    if (loginBtn) { loginBtn.textContent = currentUser.name || 'Account'; loginBtn.title = 'Logout'; }
+  } else {
+    if (loginBtn) { loginBtn.textContent = 'Login'; loginBtn.title = 'Login'; }
+  }
+}
+
+async function loadUser() {
+  if (!authToken) return;
+  try {
+    const res = await fetch('/api/user/me', { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (res.ok) { const data = await res.json(); setAuth(authToken, data.user); }
+    else { setAuth(null, null); }
+  } catch { setAuth(null, null); }
+}
+
+async function syncConversations() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch('/api/conversations', { headers: { 'Authorization': `Bearer ${authToken}` } });
+    if (!res.ok) return;
+    const data = await res.json();
+    localStorage.setItem('hasanai_server_conversations', JSON.stringify(data.conversations || []));
+  } catch {}
+}
+
+if (authSubmit) {
+  authSubmit.addEventListener('click', async () => {
+    const email = authEmail.value.trim();
+    const password = authPassword.value;
+    if (!email || !password) return alert('Enter email and password');
+    const url = isLoginMode ? '/api/auth/login' : '/api/auth/signup';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name: email.split('@')[0] })
+    });
+    const data = await res.json();
+    if (!res.ok) return alert(data.error || 'Auth failed');
+    setAuth(data.token, data.user);
+    authModal.classList.remove('active');
+  });
+}
+
+if (authToggle) {
+  authToggle.addEventListener('click', () => {
+    isLoginMode = !isLoginMode;
+    authTitle.textContent = isLoginMode ? 'Login' : 'Sign up';
+    authSubmit.textContent = isLoginMode ? 'Login' : 'Sign up';
+    authToggle.textContent = isLoginMode ? 'Sign up' : 'Login';
+  });
+}
+
+if (closeAuthModal) {
+  closeAuthModal.addEventListener('click', () => authModal.classList.remove('active'));
+}
+
+
+
+
+
+
+
         newChatButton.addEventListener('click', () => {
             const conv = createNewConversation();
             switchConversation(conv.id);
@@ -3046,5 +3130,28 @@
             navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('SW registration failed:', err));
         }
     </script>
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="authTitle">Login</h3>
+      <button class="modal-close" id="closeAuthModal">&times;</button>
+    </div>
+    <div class="settings-body">
+      <label>
+        <span>Email</span>
+        <input type="email" id="authEmail" placeholder="you@example.com">
+      </label>
+      <label>
+        <span>Password</span>
+        <input type="password" id="authPassword" placeholder="••••••••">
+      </label>
+      <div class="settings-actions">
+        <button class="new-chat-button" id="authSubmit">Login</button>
+        <button class="icon-button" id="authToggle">Sign up</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

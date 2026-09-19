@@ -1,3 +1,7 @@
+import jwt
+import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
+from models import db, User, Conversation, Message, Setting
 import os
 import json
 import time
@@ -8,6 +12,14 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
+
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'hasanai-secret-key-change-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///hasanai.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
 
 API_KEY = os.environ.get('API_KEY', 'sk_4483bb8b0eb01bac0667948aea29eeea')
 API_URL = os.environ.get('API_URL', 'https://api.inceptionlabs.ai/v1/chat/completions')
@@ -21,6 +33,42 @@ def format_sse(data: str, event: str = None) -> str:
     if event:
         msg = f"event: {event}\n{msg}"
     return msg
+
+
+def token_required(f):
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Token is missing'}), 401
+        token = auth_header.split(' ')[1]
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            current_user = User.query.get(data['user_id'])
+            if not current_user:
+                return jsonify({'error': 'User not found'}), 401
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token expired'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
+        return f(current_user, *args, **kwargs)
+    wrapper.__name__ = f.__name__
+    return wrapper
+
+
+def optional_token(f):
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
+        user = None
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            try:
+                data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                user = User.query.get(data['user_id'])
+            except Exception:
+                pass
+        return f(user, *args, **kwargs)
+    wrapper.__name__ = f.__name__
+    return wrapper
 
 
 @app.route('/api/models')
@@ -58,7 +106,8 @@ def service_worker():
 
 
 @app.route('/api/chat', methods=['POST'])
-def chat():
+@optional_token
+def chat(current_user):
     if not API_KEY or not API_URL:
         return Response(
             format_sse(json.dumps({"error": "Provider not configured yet."})),
@@ -204,6 +253,117 @@ def chat_debug():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/auth/signup', methods=['POST'])
+def signup():
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    name = data.get('name', '').strip()
+    if not email or not password:
+        return jsonify({'error': 'Email and password are required'}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({'error': 'Email already registered'}), 400
+    user = User(
+        email=email,
+        password_hash=generate_password_hash(password),
+        name=name or email.split('@')[0]
+    )
+    db.session.add(user)
+    db.session.commit()
+    token = jwt.encode({
+        'user_id': user.id,
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=30)
+    }, app.config['SECRET_KEY'], algorithm='HS256')
+    return jsonify({
+        'token': token,
+        'user': {'id': user.id, 'email': user.email, 'name': user.name}
+    })
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+    user = User.query.filter_by(email=email).first()
+    if not user or not check_password_hash(user.password_hash, password):
+        return jsonify({'error': 'Invalid email or password'}), 401
+    token = jwt.encode({
+        'user_id': user.id,
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=30)
+    }, app.config['SECRET_KEY'], algorithm='HS256')
+    return jsonify({
+        'token': token,
+        'user': {'id': user.id, 'email': user.email, 'name': user.name}
+    })
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+@token_required
+def logout(current_user):
+    return jsonify({'message': 'Logged out successfully'})
+
+
+@app.route('/api/user/me', methods=['GET'])
+@token_required
+def get_current_user(current_user):
+    return jsonify({'user': {'id': current_user.id, 'email': current_user.email, 'name': current_user.name}})
+
+
+@app.route('/api/conversations', methods=['GET'])
+@token_required
+def get_conversations(current_user):
+    convs = Conversation.query.filter_by(user_id=current_user.id).order_by(Conversation.updated_at.desc()).all()
+    return jsonify({'conversations': [{
+        'id': c.id,
+        'title': c.title,
+        'created_at': c.created_at.isoformat(),
+        'updated_at': c.updated_at.isoformat(),
+        'messages': [{'role': m.role, 'content': m.content, 'created_at': m.created_at.isoformat()} for m in c.messages]
+    } for c in convs]})
+
+
+@app.route('/api/conversations', methods=['POST'])
+@token_required
+def create_conversation(current_user):
+    data = request.get_json() or {}
+    conv = Conversation(user_id=current_user.id, title=data.get('title', 'New Chat'))
+    db.session.add(conv)
+    db.session.commit()
+    return jsonify({'conversation': {'id': conv.id, 'title': conv.title, 'created_at': conv.created_at.isoformat(), 'updated_at': conv.updated_at.isoformat(), 'messages': []}})
+
+
+@app.route('/api/conversations/<int:conv_id>', methods=['DELETE'])
+@token_required
+def delete_conversation(current_user, conv_id):
+    conv = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first_or_404()
+    db.session.delete(conv)
+    db.session.commit()
+    return jsonify({'message': 'Deleted'})
+
+
+@app.route('/api/settings', methods=['GET'])
+@token_required
+def get_settings(current_user):
+    settings = Setting.query.filter_by(user_id=current_user.id).all()
+    return jsonify({'settings': {s.key: s.value for s in settings}})
+
+
+@app.route('/api/settings', methods=['POST'])
+@token_required
+def save_settings(current_user):
+    data = request.get_json()
+    for key, value in (data or {}).items():
+        setting = Setting.query.filter_by(user_id=current_user.id, key=key).first()
+        if setting:
+            setting.value = str(value)
+        else:
+            setting = Setting(user_id=current_user.id, key=key, value=str(value))
+            db.session.add(setting)
+    db.session.commit()
+    return jsonify({'message': 'Settings saved'})
 
 
 if __name__ == '__main__':
