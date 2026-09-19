@@ -1304,7 +1304,7 @@
                         <option value="light">Light</option>
                     </select>
                     <select class="model-select" id="modelSelect" title="Select model">
-                        <option value="Atria-Dawn-Preview" selected>Atria Dawn Preview</option>
+                        <option value="inception-34b" selected>InceptionLabs 34B</option>
                     </select>
                     <select class="model-select" id="voiceSelect" title="Select voice">
                         <option value="">Loading voices...</option>
@@ -2112,13 +2112,12 @@
         });
 
         function updateImageUploadState() {
-            const isVisionModel = modelSelect.value !== 'Atria-Dawn-Preview';
-            attachButton.disabled = !isVisionModel;
-            cameraButton.disabled = !isVisionModel;
-            attachButton.style.opacity = isVisionModel ? '1' : '0.5';
-            cameraButton.style.opacity = isVisionModel ? '1' : '0.5';
-            attachButton.title = isVisionModel ? 'Attach image' : 'Image upload not supported by this model';
-            cameraButton.title = isVisionModel ? 'Take photo' : 'Image upload not supported by this model';
+            attachButton.disabled = false;
+            cameraButton.disabled = false;
+            attachButton.style.opacity = '1';
+            cameraButton.style.opacity = '1';
+            attachButton.title = 'Attach image';
+            cameraButton.title = 'Take photo';
         }
 
         modelSelect.addEventListener('change', updateImageUploadState);

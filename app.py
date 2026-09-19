@@ -9,9 +9,9 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-API_KEY = os.environ.get('API_KEY', 'atr_VsYOuvA90HXbeSqMsh_PKR2OWvVuJebe')
-API_URL = os.environ.get('API_URL', 'https://api.atria-asi.ai/v1/chat/completions')
-DEFAULT_MODEL = os.environ.get('DEFAULT_MODEL', 'Atria-Dawn-Preview')
+API_KEY = os.environ.get('API_KEY', 'sk_4483bb8b0eb01bac0667948aea29eeea')
+API_URL = os.environ.get('API_URL', 'https://api.inceptionlabs.ai/v1/chat/completions')
+DEFAULT_MODEL = os.environ.get('DEFAULT_MODEL', 'inception-34b')
 MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
 
@@ -26,7 +26,7 @@ def format_sse(data: str, event: str = None) -> str:
 @app.route('/api/models')
 def get_models():
     return jsonify({
-        'models': [{"id": DEFAULT_MODEL, "name": "Atria Dawn Preview"}],
+        'models': [{"id": DEFAULT_MODEL, "name": "InceptionLabs"}],
         'default': DEFAULT_MODEL
     })
 
@@ -36,7 +36,7 @@ def healthz():
     return jsonify({
         'status': 'ok',
         'model': DEFAULT_MODEL,
-        'provider': 'atria',
+        'provider': 'inceptionlabs',
         'configured': bool(API_KEY and API_URL),
         'timestamp': int(time.time())
     })
@@ -65,12 +65,6 @@ def chat():
             if isinstance(msg.get('content'), list):
                 for item in msg['content']:
                     if item.get('type') == 'image_url':
-                        if selected_model == 'Atria-Dawn-Preview':
-                            return Response(
-                                format_sse(json.dumps({"error": "Atria-Dawn-Preview does not support image input. Please use a vision-capable model or remove the image."})),
-                                status=400,
-                                content_type='text/event-stream'
-                            )
                         image_url = item.get('image_url', {}).get('url', '')
                         if image_url.startswith('data:'):
                             try:
@@ -114,7 +108,7 @@ def chat():
                         error_msg = error_data.get('message') or error_data.get('error', {}).get('message') or resp.text
                     except Exception:
                         error_msg = resp.text or f"HTTP {resp.status_code}"
-                    yield format_sse(json.dumps({"error": f"Atria API Error: {error_msg}"}))
+                    yield format_sse(json.dumps({"error": f"API Error: {error_msg}"}))
                     return
 
                 for line in resp.iter_lines():
