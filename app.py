@@ -92,7 +92,12 @@ def healthz():
 
 @app.route('/', methods=['GET'])
 def index():
-    return send_from_directory('.', 'index.html')
+    resp = send_from_directory('.', 'index.html')
+    # Never let the browser or an intermediary hold a stale app shell; a cached
+    # index.html hides new fixes from users even after the file on disk changes.
+    resp.headers['Cache-Control'] = 'no-store, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
 
 
 @app.route('/manifest.json')
@@ -102,7 +107,10 @@ def manifest():
 
 @app.route('/sw.js')
 def service_worker():
-    return send_from_directory('.', 'sw.js')
+    resp = send_from_directory('.', 'sw.js')
+    # Must always be revalidated so service worker updates are picked up.
+    resp.headers['Cache-Control'] = 'no-store, must-revalidate'
+    return resp
 
 
 @app.route('/api/chat', methods=['POST'])
@@ -325,14 +333,51 @@ def get_conversations(current_user):
     } for c in convs]})
 
 
+def _message_content_to_text(content):
+    """Convert a message content (which may be a list of parts or a plain string)
+    into a single text string for storage."""
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get('type') == 'text' and item.get('text'):
+                parts.append(str(item['text']))
+        return ' '.join(parts).strip()
+    return str(content) if content else ''
+
+
+def _replace_messages(conversation, messages):
+    Message.query.filter_by(conversation_id=conversation.id).delete()
+    if isinstance(messages, list):
+        for m in messages:
+            if isinstance(m, dict) and m.get('role') in ('user', 'assistant', 'system'):
+                content = _message_content_to_text(m.get('content'))
+                db.session.add(Message(conversation_id=conversation.id, role=str(m.get('role')), content=content))
+
+
 @app.route('/api/conversations', methods=['POST'])
 @token_required
 def create_conversation(current_user):
     data = request.get_json() or {}
-    conv = Conversation(user_id=current_user.id, title=data.get('title', 'New Chat'))
+    conv = Conversation(user_id=current_user.id, title=data.get('title') or 'New Chat')
     db.session.add(conv)
+    db.session.flush()
+    _replace_messages(conv, data.get('messages'))
     db.session.commit()
-    return jsonify({'conversation': {'id': conv.id, 'title': conv.title, 'created_at': conv.created_at.isoformat(), 'updated_at': conv.updated_at.isoformat(), 'messages': []}})
+    return jsonify({'conversation': {'id': conv.id, 'title': conv.title, 'created_at': conv.created_at.isoformat(), 'updated_at': conv.updated_at.isoformat(), 'messages': [{'role': m.role, 'content': m.content, 'created_at': m.created_at.isoformat()} for m in conv.messages]}})
+
+
+@app.route('/api/conversations/<int:conv_id>', methods=['PUT'])
+@token_required
+def update_conversation(current_user, conv_id):
+    conv = Conversation.query.filter_by(id=conv_id, user_id=current_user.id).first_or_404()
+    data = request.get_json() or {}
+    if 'title' in data and data['title']:
+        conv.title = str(data['title'])
+    if 'messages' in data:
+        _replace_messages(conv, data['messages'])
+    conv.updated_at = datetime.datetime.utcnow()
+    db.session.commit()
+    return jsonify({'conversation': {'id': conv.id, 'title': conv.title, 'created_at': conv.created_at.isoformat(), 'updated_at': conv.updated_at.isoformat(), 'messages': [{'role': m.role, 'content': m.content, 'created_at': m.created_at.isoformat()} for m in conv.messages]}})
 
 
 @app.route('/api/conversations/<int:conv_id>', methods=['DELETE'])

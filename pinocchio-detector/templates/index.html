@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pinocchio — Deepfake Detection</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="container">
+<h1>Pinocchio</h1>
+<p class="subtitle">Upload a video to detect deepfakes.</p>
+<form id="uploadForm">
+  <input type="file" name="video" accept="video/*" required />
+  <button type="submit">Analyse</button>
+</form>
+<div id="result" style="display:none;">
+  <div id="progress"></div>
+  <pre id="output"></pre>
+  <a id="downloadLink" href="#" download>Download Report</a>
+</div>
+</div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

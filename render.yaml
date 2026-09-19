@@ -1,0 +1,10 @@
+# Render.com deployment for Pinocchio
+services:
+  - type: web
+    name: pinocchio
+    runtime: python
+    buildCommand: pip install -r pinocchio-detector/requirements.txt
+    startCommand: gunicorn pinocchio-detector.app:app
+    workingDirectory: .
+    plan: free
+    autoDeploy: true

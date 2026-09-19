@@ -7,3 +7,6 @@ venv/
 *.sqlite3
 .DS_Store
 Thumbs.db
+pinocchio-detector/uploads/
+pinocchio-detector/temp_frames/
+pinocchio-detector/__pycache__/
