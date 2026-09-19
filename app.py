@@ -11,7 +11,7 @@ CORS(app)
 
 API_KEY = os.environ.get('API_KEY', 'sk_4483bb8b0eb01bac0667948aea29eeea')
 API_URL = os.environ.get('API_URL', 'https://api.inceptionlabs.ai/v1/chat/completions')
-DEFAULT_MODEL = os.environ.get('DEFAULT_MODEL', 'inception-34b')
+DEFAULT_MODEL = os.environ.get('DEFAULT_MODEL', 'mercury-2.5')
 MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
 
@@ -26,7 +26,7 @@ def format_sse(data: str, event: str = None) -> str:
 @app.route('/api/models')
 def get_models():
     return jsonify({
-        'models': [{"id": DEFAULT_MODEL, "name": "InceptionLabs"}],
+        'models': [{"id": DEFAULT_MODEL, "name": "Mercury 2.5"}],
         'default': DEFAULT_MODEL
     })
 
