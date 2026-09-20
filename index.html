@@ -78,6 +78,7 @@
         }
 
         .app-container {
+            position: relative;
             display: flex;
             height: 100vh;
             overflow: hidden;
@@ -141,6 +142,7 @@
             flex: 1;
             overflow-y: auto;
             padding: 10px;
+        }
 
         .search-results-label {
             font-size: 11px;
@@ -856,6 +858,11 @@
                 display: flex;
             }
 
+            body.sidebar-open .sidebar-toggle {
+                opacity: 0;
+                pointer-events: none;
+            }
+
             .sidebar-backdrop.active {
                 display: block;
             }
@@ -867,7 +874,12 @@
             }
 
             .chat-header h1 {
+                min-width: 0;
+                padding-left: 52px;
                 font-size: 14px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
 
             .header-controls {
@@ -2643,7 +2655,7 @@
     </style>
 </head>
 <body>
-    <button class="sidebar-toggle" id="sidebarToggle">☰ Menu</button>
+    <button class="sidebar-toggle" id="sidebarToggle" aria-expanded="false" aria-controls="sidebar">☰ Menu</button>
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
     <div class="app-container">
@@ -2651,7 +2663,7 @@
             <div class="sidebar-header">
                 <h2>HasanAI</h2>
                 <button class="new-chat-button" id="newChatButton">+ New Chat</button>
-                <input type="search" id="conversationSearch" name="conversation-search" placeholder="Search conversations..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="width:100%; margin-top:8px; padding:6px; background:var(--bg-primary); border:1px solid var(--border); color:var(--text-primary); border-radius:4px; font-size:12px;">
+                <input type="search" id="conversationSearch" name="conversation-search" placeholder="Search conversations..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly data-lpignore="true" data-1p-ignore="true" style="width:100%; margin-top:8px; padding:6px; background:var(--bg-primary); border:1px solid var(--border); color:var(--text-primary); border-radius:4px; font-size:12px;">
             </div>
             <div class="conversations-list" id="conversationsList"></div>
             <div class="sidebar-footer">
@@ -4684,11 +4696,30 @@
             switchConversation(conv.id);
         });
 
+        function setSidebarOpen(open) {
+            sidebar.classList.toggle('open', open);
+            sidebarBackdrop.classList.toggle('active', open);
+            document.body.classList.toggle('sidebar-open', open);
+            sidebarToggle.setAttribute('aria-expanded', String(open));
+        }
+
         if (conversationSearch) {
             // Only filter after a real user interaction. Browsers autofill this box
             // without any interaction (e.g. with a saved email), which previously
             // filtered out every conversation and left the sidebar looking blank.
             const markSearchTouched = () => { searchTouched = true; };
+            const unlockSearch = () => {
+                conversationSearch.removeAttribute('readonly');
+                if (!searchTouched && conversationSearch.value) {
+                    conversationSearch.value = '';
+                }
+            };
+            conversationSearch.addEventListener('focus', unlockSearch);
+            conversationSearch.addEventListener('blur', () => {
+                if (!conversationSearch.value) {
+                    conversationSearch.setAttribute('readonly', '');
+                }
+            });
             conversationSearch.addEventListener('keydown', markSearchTouched);
             conversationSearch.addEventListener('paste', markSearchTouched);
             conversationSearch.addEventListener('click', markSearchTouched);
@@ -5101,13 +5132,11 @@
         }
 
         sidebarToggle.addEventListener('click', () => {
-            sidebar.classList.toggle('open');
-            sidebarBackdrop.classList.toggle('active');
+            setSidebarOpen(!sidebar.classList.contains('open'));
         });
 
         sidebarBackdrop.addEventListener('click', () => {
-            sidebar.classList.remove('open');
-            sidebarBackdrop.classList.remove('active');
+            setSidebarOpen(false);
         });
 
         /* mobile drawer: right-swipe opens, left-swipe closes (chat + sidebar only) */
@@ -5132,14 +5161,12 @@
                 if (dx > 0) {
                     // right swipe from the screen edge opens the drawer
                     if (t.clientX - dx < 48 && !sidebar.classList.contains('open') && !inChatInput) {
-                        sidebar.classList.add('open');
-                        sidebarBackdrop.classList.add('active');
+                        setSidebarOpen(true);
                     }
                 } else {
                     // left swipe closes the open drawer
                     if (sidebar.classList.contains('open')) {
-                        sidebar.classList.remove('open');
-                        sidebarBackdrop.classList.remove('active');
+                        setSidebarOpen(false);
                     }
                 }
             }, { passive: true });
